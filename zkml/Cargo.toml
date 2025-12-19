@@ -1,0 +1,79 @@
+[package]
+name = "zkml"
+version = "0.0.1"
+edition = "2021"
+description = "Zero-knowledge machine learning"
+license = "LICENSE"
+homepage = "https://github.com/ddkang/zkml"
+repository = "https://github.com/ddkang/zkml-public.git"
+readme = "README.md"
+exclude = [
+  "params",
+  "params_kzg",
+  "python",
+]
+
+[dependencies]
+bitvec = "1.0.1"
+halo2 = { path = "halo2/halo2"}
+halo2_gadgets = { path = "halo2/halo2_gadgets", features = ["circuit-params"] }
+halo2_proofs = { path = "halo2/halo2_proofs", features = ["circuit-params"] }
+lazy_static = "1.4.0"
+ndarray = "0.15.6"
+num-bigint = "0.4.3"
+num-traits = "0.2.15"
+once_cell = "1.15.0"
+rand = "0.8.5"
+rmp-serde = "1.1.1"
+rounded-div = "0.1.2"
+serde = "1.0.152"
+serde_derive = "1.0.152"
+serde_json = "1.0.85"
+wav = "1.0.0"
+rayon = "1.5.1"
+
+[dev-dependencies]
+rand_core = "0.6.4"
+criterion = "0.5.1"
+group = "0.13.0"
+ff = "0.13.0"
+
+[[bench]]
+name = "benchmark_ipa_fft"
+harness = false
+
+[[bench]]
+name = "benchmark_ipa_msm"
+harness = false
+
+[[bench]]
+name = "benchmark_ipa_mul"
+harness = false
+
+[[bench]]
+name = "benchmark_ipa_add"
+harness = false
+
+[[bench]]
+name = "benchmark_ipa_permute_expression_pair"
+harness = false
+
+[[bench]]
+name = "benchmark_kzg_fft"
+harness = false
+
+[[bench]]
+name = "benchmark_kzg_msm"
+harness = false
+
+[[bench]]
+name = "benchmark_kzg_mul"
+harness = false
+
+[[bench]]
+name = "benchmark_kzg_add"
+harness = false
+
+[[bench]]
+name = "benchmark_kzg_permute_expression_pair"
+harness = false
