@@ -32,6 +32,9 @@ serde_json = "1.0.85"
 wav = "1.0.0"
 rayon = "1.5.1"
 
+[features]
+ray = []
+
 [dev-dependencies]
 rand_core = "0.6.4"
 criterion = "0.5.1"
@@ -77,3 +80,11 @@ harness = false
 [[bench]]
 name = "benchmark_kzg_permute_expression_pair"
 harness = false
+
+[[test]]
+name = "merkle_tree_test"
+path = "testing/merkle_tree_test.rs"
+
+[[test]]
+name = "chunk_execution_test"
+path = "testing/chunk_execution_test.rs"
