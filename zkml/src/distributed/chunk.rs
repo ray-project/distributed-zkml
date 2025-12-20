@@ -3,7 +3,7 @@
 //! A chunk represents a portion of the model that can be proven independently.
 
 use std::collections::BTreeMap;
-use ndarray::Array;
+use ndarray::{Array, IxDyn};
 
 use std::rc::Rc;
 use halo2_proofs::{
@@ -55,11 +55,11 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> ModelChunk<F> {
     /// Execute this chunk and compute Merkle root of outputs
     pub fn execute_with_merkle(
         &mut self,
-        mut layouter: impl Layouter<F>,
-        gadget_config: Rc<GadgetConfig>,
-        constants: &HashMap<i64, CellRc<F>>,
-        inputs: &BTreeMap<i64, Array<F, IxDyn>>,
-        merkle_chip: &MerkleTreeChip<F>,
+        _layouter: impl Layouter<F>,
+        _gadget_config: Rc<GadgetConfig>,
+        _constants: &HashMap<i64, CellRc<F>>,
+        _inputs: &BTreeMap<i64, Array<F, IxDyn>>,
+        _merkle_chip: &MerkleTreeChip<F>,
     ) -> Result<(AssignedTensor<F>, CellRc<F>), Error> {
         // For minimal example, we'll simplify this
         // In production, you'd execute the actual layers
