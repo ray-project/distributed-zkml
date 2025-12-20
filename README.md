@@ -27,7 +27,7 @@ distributed-zkml/
 
 ## What's Been Done
 
-### Merkle Tree Integration
+### Merkle Tree Integration in Rust Circuits
 
 - **Binary Merkle tree implementation** (`zkml/src/commitments/merkle.rs`)
   - Builds proper binary tree from intermediate values
@@ -133,13 +133,18 @@ cargo check --lib
 - `zkml/testing/merkle_tree_test.rs` - Merkle tree tests (3 tests)
 - `zkml/testing/chunk_execution_test.rs` - Chunk execution tests (3 tests)
 
-See `TESTING.md` for detailed testing instructions.
-
 ## Next Steps
 
 1. **Make Merkle root public**: Add root to public values so next chunk can verify it
 2. **Complete proof generation**: Connect chunk execution to actual proof generation
 3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation
+4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work (Halo2 GPU support or custom GPU kernels)
+
+### GPU Performance Benchmarking
+
+- Compare CPU vs GPU proving times
+- Test with larger models (A100: 40GB, H100: 80GB)
+- Measure throughput scaling with multiple GPUs
 
 ## Requirements
 
