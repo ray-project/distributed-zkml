@@ -1,105 +1,72 @@
-# AWS GPU Tests
+# AWS GPU Testing
 
-Tests for distributed proving on AWS GPU instances (A100/H100).
+## Quick Start
 
-## Prerequisites
+1. **Set AWS credentials:**
+   ```bash
+   export AWS_ACCESS_KEY_ID=your_key
+   export AWS_SECRET_ACCESS_KEY=your_secret
+   export AWS_SESSION_TOKEN=your_token
+   ```
 
-### AWS Credentials
+2. **Optional: Verify/override defaults:**
+   ```bash
+   ./tests/aws/setup_aws_resources.sh
+   ```
+   This will show you the defaults being used. All defaults are set automatically:
+   - Key: `masoud-hybrid-par`
+   - Security Group: `anyscale-security-group` (if exists)
+   
+   You can skip this step if defaults work for you!
 
-Set the following environment variables:
+3. **Launch instance and run tests:**
+   ```bash
+   ./tests/aws/manage_aws_instance.sh
+   ```
+   This will automatically:
+   - Launch a `g5.xlarge` instance (A100 GPU)
+   - Wait for SSH
+   - Install dependencies
+   - Run GPU tests
+   - Shutdown the instance
 
-```bash
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_SESSION_TOKEN=your_session_token
-```
+## Defaults
 
-### GPU Instance
+- **AMI**: `ami-0076e7fffffc9251d` (Ubuntu 20.04, PyTorch 2.3.1) - set automatically
+- **Instance Type**: `g5.xlarge` (1x A100 40GB) - set automatically
+- **Key Name**: `masoud-hybrid-par` - set automatically (default key pair)
+- **Security Group**: `anyscale-security-group` - set automatically (if exists)
+- **Subnet**: Auto-detected from security group's VPC
+- **Region**: `us-west-2` - set automatically
 
-Launch an AWS instance with GPU support:
-- **A100**: `g5.xlarge` or larger (1x A100)
-- **H100**: `p5.48xlarge` (8x H100)
+All defaults are set automatically! Just run `./tests/aws/manage_aws_instance.sh` and it will use the defaults, or run `./tests/aws/setup_aws_resources.sh` to verify/override them.
 
-### Dependencies
+## Files
 
-```bash
-# Install Rust (nightly)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup override set nightly
-
-# Install Python dependencies
-pip install ray torch
-
-# Install CUDA drivers (usually pre-installed on GPU instances)
-nvidia-smi  # Verify GPU is available
-```
-
-## Running Tests
-
-```bash
-# From distributed-zkml root
-python3 tests/aws/gpu_test.py
-```
-
-## Test Suite
-
-The test suite includes:
-
-1. **AWS Credentials Check**: Validates required environment variables
-2. **GPU Availability Check**: Verifies GPU is accessible via `nvidia-smi`
-3. **Ray Cluster Setup**: Initializes Ray with GPU support
-4. **Basic GPU Distribution**: Tests task distribution across GPU workers
-5. **Distributed Proving Simulation**: Runs distributed proving with Merkle trees
-
-## Expected Output
-
-```
-============================================================
-AWS GPU Tests for Distributed Proving
-============================================================
-INFO: AWS credentials found
-INFO: GPU detected
-INFO: Ray initialized with 1 GPU(s)
-
---- Running: Basic GPU Distribution ---
-INFO: Testing GPU distribution with 2 workers
-INFO: Completed 4 tasks
-INFO: Task 0: Worker 0, GPU 0, Time: 2.34ms
-...
-
---- Running: Distributed Proving Simulation ---
-INFO: Testing distributed proving simulation
-INFO: Distributed proving completed: 2 chunks
-INFO: Chunk 0: success
-INFO: Chunk 1: success
-
-============================================================
-Test Summary
-============================================================
-Basic GPU Distribution: PASS
-Distributed Proving Simulation: PASS
-```
+- `setup_aws_resources.sh` - Creates/gets key pair and security group
+- `manage_aws_instance.sh` - Launches instance, runs tests, shuts down
+- `find_ami.sh` - Lists available Deep Learning AMIs
+- `gpu_test.py` - Python test suite for GPU testing
+- `QUICK_START.md` - Detailed step-by-step guide
+- `NEXT_STEPS.md` - What to do after setting AMI
+- `aws_setup_guide.md` - Comprehensive AWS setup guide
 
 ## Troubleshooting
 
-### "Missing AWS credentials"
-- Ensure all three environment variables are set
-- Check credentials are valid: `aws sts get-caller-identity`
+**"Missing required parameters"**
+- Run `./tests/aws/setup_aws_resources.sh` first to get KEY_NAME and SECURITY_GROUP
 
-### "nvidia-smi not found"
-- GPU instance may not have CUDA drivers installed
-- Install NVIDIA drivers: `sudo apt-get install nvidia-driver-535`
+**"AWS credentials not set"**
+- Set: `export AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
 
-### "Ray initialization failed"
-- Check GPU availability: `nvidia-smi`
-- Verify Ray installation: `pip install --upgrade ray`
+**"Identity file not accessible" or "Permission denied" on SSH**
+- The key pair exists in AWS but the private key file is missing locally
+- If you have the key file elsewhere, copy it to: `~/.ssh/masoud-hybrid-par.pem`
+- If you lost the key file, you'll need to create a new key pair or retrieve the key from where it was originally saved
+- Set correct permissions: `chmod 400 ~/.ssh/masoud-hybrid-par.pem`
+- Make sure your security group allows SSH (port 22) from your IP
 
-### "PyTorch CUDA not available"
-- Install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
+**"nvidia-smi not found"**
+- Make sure you're using a Deep Learning AMI (default AMI has it)
+- Or install drivers: `sudo apt-get install nvidia-driver-535`
 
-## Performance Notes
-
-- **A100**: ~40GB VRAM, good for large models
-- **H100**: ~80GB VRAM, excellent for very large models
-- Ray will automatically distribute tasks across available GPUs
-- Monitor GPU usage: `watch -n 1 nvidia-smi`
