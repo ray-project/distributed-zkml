@@ -4,9 +4,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 
 ## Overview
 
-This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs.
-
-zkml provides: An optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation.
+This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs. zkml provides An optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation. High-stakes AI applications in biology or robotics are more practical with trustless verification.
 
 distributed-zkml adds:
 - Layer-wise partitioning: Split ML models into chunks for parallel proving across multiple GPUs

@@ -1,6 +1,31 @@
 # Quick Start: AWS GPU Testing
 
-## 1. Setup AWS CLI
+## Recommended: Automated Setup
+
+**Quickest way to get started:**
+
+```bash
+# 1. Set AWS credentials
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_SESSION_TOKEN=your_token
+
+# 2. Run setup script (creates/gets resources)
+./tests/aws/setup_aws_resources.sh
+
+# 3. Export the values it shows
+export KEY_NAME=your-key-name
+export SECURITY_GROUP=sg-xxxxx
+
+# 4. Launch, test, and shutdown automatically
+./tests/aws/manage_aws_instance.sh
+```
+
+That's it! The script handles: launch → setup → test → shutdown.
+
+## Manual Setup (Alternative)
+
+### 1. Setup AWS CLI
 
 ```bash
 # Install AWS CLI (if not installed)
@@ -21,14 +46,14 @@ export AWS_SESSION_TOKEN=your_token
 export AWS_DEFAULT_REGION=us-west-2
 ```
 
-## 2. Find Deep Learning AMI
+### 2. Find Deep Learning AMI
 
 **Option A: Use helper script**
 ```bash
 ./tests/aws/find_ami.sh
 ```
 
-**Option B: Manual command (this one works!)**
+**Option B: Manual command**
 ```bash
 aws ec2 describe-images \
   --owners amazon \
@@ -43,11 +68,7 @@ aws ec2 describe-images \
 export AMI_ID=ami-0076e7fffffc9251d  # Ubuntu 20.04, PyTorch 2.3.1
 ```
 
-Or copy a different AMI ID from the output above.
-
-## 3. Get Key Pair and Security Group
-
-You need two things before launching an instance:
+### 3. Get Key Pair and Security Group
 
 **A. Key Pair** (for SSH access):
 ```bash
@@ -57,10 +78,10 @@ aws ec2 describe-key-pairs --region us-west-2
 # If you don't have one, create it:
 aws ec2 create-key-pair --key-name my-key --region us-west-2 --query 'KeyMaterial' --output text > ~/.ssh/my-key.pem
 chmod 400 ~/.ssh/my-key.pem
+export KEY_NAME=my-key
 ```
 
 **B. Security Group** (firewall rules - must allow SSH on port 22):
-
 ```bash
 # List security groups (find one allowing SSH on port 22)
 aws ec2 describe-security-groups \
@@ -69,30 +90,27 @@ aws ec2 describe-security-groups \
   --output table
 
 # If you don't have one, create it:
-aws ec2 create-security-group \
+SG_OUTPUT=$(aws ec2 create-security-group \
   --group-name distributed-zkml-test \
   --description "Security group for distributed-zkml GPU testing" \
-  --region us-west-2
+  --region us-west-2)
 
-# Allow SSH (replace sg-xxxxx with your security group ID)
+export SECURITY_GROUP=$(echo $SG_OUTPUT | jq -r '.GroupId')
+
+# Allow SSH
 aws ec2 authorize-security-group-ingress \
-  --group-id sg-xxxxx \
+  --group-id "$SECURITY_GROUP" \
   --protocol tcp \
   --port 22 \
   --cidr 0.0.0.0/0 \
   --region us-west-2
 ```
 
-## 4. Launch Instance
+### 4. Launch Instance
 
 ```bash
-# Set variables
-export AMI_ID=ami-xxxxx  # From step 2
-export KEY_NAME=your-key-name  # From step 3
-export SECURITY_GROUP=sg-xxxxx  # From step 3
 export INSTANCE_TYPE=g5.xlarge  # A100 instance
 
-# Launch
 aws ec2 run-instances \
   --image-id "$AMI_ID" \
   --instance-type "$INSTANCE_TYPE" \
@@ -104,7 +122,7 @@ aws ec2 run-instances \
 
 Save the instance ID (e.g., `i-0abc123def456`)
 
-## 5. Get Public IP and SSH
+### 5. Get Public IP and SSH
 
 ```bash
 INSTANCE_ID=i-xxxxx  # From step 4
@@ -121,10 +139,10 @@ PUBLIC_IP=$(aws ec2 describe-instances \
 echo "Public IP: $PUBLIC_IP"
 
 # Wait 1-2 minutes for SSH, then connect
-ssh -i ~/.ssh/your-key.pem ubuntu@"$PUBLIC_IP"
+ssh -i ~/.ssh/$KEY_NAME.pem ubuntu@"$PUBLIC_IP"
 ```
 
-## 6. On Instance: Setup and Test
+### 6. On Instance: Setup and Test
 
 ```bash
 # Install dependencies
@@ -145,37 +163,26 @@ export AWS_SESSION_TOKEN=your_token
 python3 tests/aws/gpu_test.py
 ```
 
-## 7. Shutdown Instance
+### 7. Shutdown Instance
 
 ```bash
 # From your local machine
 aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
 ```
 
-## Automated Script
+## Configuration Reference
 
-Or use the automated script (defaults are set, so you only need security group):
+All configuration via environment variables:
 
-```bash
-# Required: Set key name and security group (get from setup script)
-export KEY_NAME=your-key-name
-export SECURITY_GROUP=sg-xxxxx
+**Required:**
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` - AWS credentials
+- `KEY_NAME` - EC2 key pair name
+- `SECURITY_GROUP` - Security group ID
 
-# Optional: override defaults
-export INSTANCE_TYPE=g5.xlarge  # Default is already g5.xlarge
-export AMI_ID=ami-xxxxx  # Default: ami-0076e7fffffc9251d (Ubuntu 20.04, PyTorch 2.3.1)
-
-./tests/aws/manage_aws_instance.sh
-```
-
-This will: launch → setup → test → shutdown automatically.
-
-## Summary: Next Steps After Setting AMI
-
-1. ✅ **AMI is set** (default: `ami-0076e7fffffc9251d`)
-2. **Get/Create Key Pair** → `export KEY_NAME=your-key-name`
-3. **Get/Create Security Group** → `export SECURITY_GROUP=sg-xxxxx`
-4. **Launch Instance** → Run `./tests/aws/manage_aws_instance.sh` or follow steps 4-7 above
-5. **SSH and Test** → Script handles this automatically
-6. **Shutdown** → Script handles this automatically
-
+**Optional:**
+- `AWS_KEY_NAME` - Key name for auto-detection in setup script
+- `AWS_SECURITY_GROUP_NAME` - Security group name for auto-detection
+- `AWS_REGION` - Default: `us-west-2`
+- `INSTANCE_TYPE` - Default: `g5.xlarge` (1x A100 40GB)
+- `AMI_ID` - Default: `ami-0076e7fffffc9251d` (Ubuntu 20.04, PyTorch 2.3.1)
+- `SUBNET_ID` - Auto-detected from security group's VPC if not set
