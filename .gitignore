@@ -1,1 +1,43 @@
-zkml/.git.backup
+# Rust
+target/
+Cargo.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.msgpack
+*.params
+proof
+pkey
+vkey
+public_vals*
+
+# Test outputs
+*.log
+test_output/
+
+# Git backups
+.git.backup/
+
+# Broken examples (moved out of main examples)
+zkml/examples/broken/

@@ -2,18 +2,16 @@
 //!
 //! A chunk represents a portion of the model that can be proven independently.
 
-use std::collections::BTreeMap;
-use ndarray::{Array, IxDyn};
-
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use ndarray::{Array, IxDyn};
 use halo2_proofs::{
     circuit::Layouter,
     halo2curves::ff::{FromUniformBytes, PrimeField},
     plonk::Error,
 };
-use std::collections::HashMap;
 
-use crate::{
+use zkml::{
     layers::layer::{AssignedTensor, CellRc},
     model::ModelCircuit,
     commitments::merkle::MerkleTreeChip,

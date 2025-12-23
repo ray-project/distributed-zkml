@@ -11,9 +11,10 @@ use halo2_proofs::{
 };
 use rand::thread_rng;
 
-use crate::model::ModelCircuit;
-use crate::utils::helpers::get_public_values;
-use crate::utils::proving_kzg::get_kzg_params;
+use zkml::{
+    model::ModelCircuit,
+    utils::helpers::get_public_values,
+};
 
 use super::shared::{InferenceInput, ProofResult, SharedResources};
 
@@ -82,8 +83,8 @@ pub fn generate_proof_local(
     input_path: &str,
     backend: &str,
 ) -> Result<ProofResult, Box<dyn std::error::Error>> {
-    use crate::utils::proving_kzg::time_circuit_kzg;
-    use crate::utils::proving_ipa::time_circuit_ipa;
+    use zkml::utils::proving_kzg::time_circuit_kzg;
+    use zkml::utils::proving_ipa::time_circuit_ipa;
     use halo2_proofs::halo2curves::pasta::Fp;
     
     let start = Instant::now();

@@ -11,8 +11,10 @@ use halo2_proofs::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::model::ModelCircuit;
-use crate::utils::proving_kzg::get_kzg_params;
+use zkml::{
+    model::ModelCircuit,
+    utils::proving_kzg::get_kzg_params,
+};
 
 /// Shared resources that can be reused across Ray workers
 #[derive(Clone)]
