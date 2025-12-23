@@ -22,13 +22,13 @@ if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
 fi
 
 # 1. Key Pair
-DEFAULT_KEY_NAME="masoud-hybrid-par"
+DEFAULT_KEY_NAME="${AWS_KEY_NAME:-}"  # Set via AWS_KEY_NAME env var, or leave empty to auto-detect/create
 echo -e "${BLUE}1. Key Pair${NC}"
 echo "Checking for existing key pairs..."
 EXISTING_KEYS=$(aws ec2 describe-key-pairs --region "$REGION" --query 'KeyPairs[*].KeyName' --output text 2>/dev/null || echo "")
 
-# Check if default key exists
-if echo "$EXISTING_KEYS" | grep -qw "$DEFAULT_KEY_NAME"; then
+# Check if default key exists (if provided)
+if [ -n "$DEFAULT_KEY_NAME" ] && echo "$EXISTING_KEYS" | grep -qw "$DEFAULT_KEY_NAME"; then
     KEY_NAME="$DEFAULT_KEY_NAME"
     KEY_FILE="$HOME/.ssh/$KEY_NAME.pem"
     if [ -f "$KEY_FILE" ]; then
@@ -47,7 +47,11 @@ else
         echo "Existing key pairs found:"
         aws ec2 describe-key-pairs --region "$REGION" --query 'KeyPairs[*].[KeyName,KeyPairId]' --output table
         echo ""
-        echo "Default key '$DEFAULT_KEY_NAME' not found."
+        if [ -n "$DEFAULT_KEY_NAME" ]; then
+            echo "Default key '$DEFAULT_KEY_NAME' not found."
+        else
+            echo "No default key name specified (set AWS_KEY_NAME env var to specify one)."
+        fi
         read -p "Enter key name to use (or press Enter to create new): " KEY_NAME
         if [ -z "$KEY_NAME" ]; then
             KEY_NAME="distributed-zkml-key-$(date +%s)"
@@ -79,7 +83,7 @@ echo ""
 export KEY_NAME
 
 # 2. Security Group
-DEFAULT_SG_NAME="anyscale-security-group"
+DEFAULT_SG_NAME="${AWS_SECURITY_GROUP_NAME:-}"  # Set via AWS_SECURITY_GROUP_NAME env var, or leave empty to auto-detect/create
 echo -e "${BLUE}2. Security Group${NC}"
 echo "Checking for existing security groups..."
 EXISTING_SGS=$(aws ec2 describe-security-groups \
@@ -88,14 +92,83 @@ EXISTING_SGS=$(aws ec2 describe-security-groups \
     --query 'SecurityGroups[*].[GroupId,GroupName]' \
     --output text 2>/dev/null || echo "")
 
-# Check if default security group exists
-DEFAULT_SG_ID=$(echo "$EXISTING_SGS" | grep -w "$DEFAULT_SG_NAME" | head -1 | awk '{print $1}')
-
-if [ -n "$DEFAULT_SG_ID" ]; then
-    SECURITY_GROUP="$DEFAULT_SG_ID"
-    echo -e "${GREEN}✓ Using default security group: $SECURITY_GROUP ($DEFAULT_SG_NAME)${NC}"
-    echo ""
+# Check if default security group exists (if provided)
+if [ -n "$DEFAULT_SG_NAME" ]; then
+    DEFAULT_SG_ID=$(echo "$EXISTING_SGS" | grep -w "$DEFAULT_SG_NAME" | head -1 | awk '{print $1}')
+    if [ -n "$DEFAULT_SG_ID" ]; then
+        SECURITY_GROUP="$DEFAULT_SG_ID"
+        echo -e "${GREEN}✓ Using default security group: $SECURITY_GROUP ($DEFAULT_SG_NAME)${NC}"
+        echo ""
+    else
+        echo "Default security group '$DEFAULT_SG_NAME' not found."
+        if [ -n "$EXISTING_SGS" ]; then
+            echo "Security groups with SSH access found:"
+            aws ec2 describe-security-groups \
+                --region "$REGION" \
+                --filters Name=ip-permission.from-port,Values=22 Name=ip-permission.to-port,Values=22 \
+                --query 'SecurityGroups[*].[GroupId,GroupName,Description]' \
+                --output table | head -20
+            echo ""
+            read -p "Enter security group ID to use (or press Enter to create new): " SECURITY_GROUP
+            if [ -z "$SECURITY_GROUP" ]; then
+                SG_NAME="distributed-zkml-test-$(date +%s)"
+                echo "Creating new security group: $SG_NAME"
+                SG_OUTPUT=$(aws ec2 create-security-group \
+                    --group-name "$SG_NAME" \
+                    --description "Security group for distributed-zkml GPU testing" \
+                    --region "$REGION" 2>&1)
+                
+                if echo "$SG_OUTPUT" | grep -q "already exists"; then
+                    SECURITY_GROUP=$(aws ec2 describe-security-groups \
+                        --region "$REGION" \
+                        --filters Name=group-name,Values="$SG_NAME" \
+                        --query 'SecurityGroups[0].GroupId' \
+                        --output text)
+                else
+                    SECURITY_GROUP=$(echo "$SG_OUTPUT" | jq -r '.GroupId' 2>/dev/null || echo "$SG_OUTPUT" | grep -o 'sg-[a-z0-9]*' | head -1)
+                fi
+                
+                # Allow SSH
+                aws ec2 authorize-security-group-ingress \
+                    --group-id "$SECURITY_GROUP" \
+                    --protocol tcp \
+                    --port 22 \
+                    --cidr 0.0.0.0/0 \
+                    --region "$REGION" 2>/dev/null || echo "SSH rule may already exist"
+                
+                echo -e "${GREEN}✓ Created security group: $SECURITY_GROUP${NC}"
+            fi
+        else
+            SG_NAME="distributed-zkml-test-$(date +%s)"
+            echo "No security groups with SSH found. Creating: $SG_NAME"
+            SG_OUTPUT=$(aws ec2 create-security-group \
+                --group-name "$SG_NAME" \
+                --description "Security group for distributed-zkml GPU testing" \
+                --region "$REGION" 2>&1)
+            
+            if echo "$SG_OUTPUT" | grep -q "already exists"; then
+                SECURITY_GROUP=$(aws ec2 describe-security-groups \
+                    --region "$REGION" \
+                    --filters Name=group-name,Values="$SG_NAME" \
+                    --query 'SecurityGroups[0].GroupId' \
+                    --output text)
+            else
+                SECURITY_GROUP=$(echo "$SG_OUTPUT" | jq -r '.GroupId' 2>/dev/null || echo "$SG_OUTPUT" | grep -o 'sg-[a-z0-9]*' | head -1)
+            fi
+            
+            # Allow SSH
+            aws ec2 authorize-security-group-ingress \
+                --group-id "$SECURITY_GROUP" \
+                --protocol tcp \
+                --port 22 \
+                --cidr 0.0.0.0/0 \
+                --region "$REGION" 2>/dev/null || echo "SSH rule may already exist"
+            
+            echo -e "${GREEN}✓ Created security group: $SECURITY_GROUP${NC}"
+        fi
+    fi
 else
+    # No default security group name specified
     if [ -n "$EXISTING_SGS" ]; then
         echo "Security groups with SSH access found:"
         aws ec2 describe-security-groups \
@@ -104,7 +177,7 @@ else
             --query 'SecurityGroups[*].[GroupId,GroupName,Description]' \
             --output table | head -20
         echo ""
-        echo "Default security group '$DEFAULT_SG_NAME' not found."
+        echo "No default security group name specified (set AWS_SECURITY_GROUP_NAME env var to specify one)."
         read -p "Enter security group ID to use (or press Enter to create new): " SECURITY_GROUP
         if [ -z "$SECURITY_GROUP" ]; then
             SG_NAME="distributed-zkml-test-$(date +%s)"

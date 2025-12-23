@@ -9,15 +9,33 @@
    export AWS_SESSION_TOKEN=your_token
    ```
 
-2. **Optional: Verify/override defaults:**
+2. **Set up resources (choose one method):**
+
+   **Method A: Automated Setup (Recommended)**
    ```bash
-   ./tests/aws/setup_aws_resources.sh
-   ```
-   This will show you the defaults being used. All defaults are set automatically:
-   - Key: `masoud-hybrid-par`
-   - Security Group: `anyscale-security-group` (if exists)
+   # Optional: Set custom resource names for auto-detection
+   export AWS_KEY_NAME=your-key-name              # Optional: for auto-detection
+   export AWS_SECURITY_GROUP_NAME=your-sg-name    # Optional: for auto-detection
    
-   You can skip this step if defaults work for you!
+   # Run setup script (will prompt or create resources)
+   ./tests/aws/setup_aws_resources.sh
+   
+   # Copy the export commands it shows, then set:
+   export KEY_NAME=your-key-name                  # Required: from setup script
+   export SECURITY_GROUP=sg-xxxxx                 # Required: from setup script
+   ```
+
+   **Method B: Manual Configuration**
+   ```bash
+   # Set required resource identifiers manually
+   export KEY_NAME=your-key-name                  # Your EC2 key pair name
+   export SECURITY_GROUP=sg-xxxxx                # Your security group ID
+   
+   # Optional: Override defaults
+   export AWS_REGION=us-west-2                    # Default: us-west-2
+   export INSTANCE_TYPE=g5.xlarge                 # Default: g5.xlarge
+   export AMI_ID=ami-0076e7fffffc9251d           # Default: Ubuntu 20.04, PyTorch 2.3.1
+   ```
 
 3. **Launch instance and run tests:**
    ```bash
@@ -30,16 +48,38 @@
    - Run GPU tests
    - Shutdown the instance
 
-## Defaults
+## Configuration
 
-- **AMI**: `ami-0076e7fffffc9251d` (Ubuntu 20.04, PyTorch 2.3.1) - set automatically
-- **Instance Type**: `g5.xlarge` (1x A100 40GB) - set automatically
-- **Key Name**: `masoud-hybrid-par` - set automatically (default key pair)
-- **Security Group**: `anyscale-security-group` - set automatically (if exists)
-- **Subnet**: Auto-detected from security group's VPC
-- **Region**: `us-west-2` - set automatically
+All configuration is done via environment variables:
 
-All defaults are set automatically! Just run `./tests/aws/manage_aws_instance.sh` and it will use the defaults, or run `./tests/aws/setup_aws_resources.sh` to verify/override them.
+### Required Variables
+
+```bash
+# AWS Credentials (required)
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_SESSION_TOKEN=your_session_token
+
+# Resource Identifiers (required - get from setup script or set manually)
+export KEY_NAME=your-key-name                  # EC2 key pair name
+export SECURITY_GROUP=sg-xxxxx                # Security group ID
+```
+
+### Optional Variables
+
+```bash
+# For auto-detection in setup script
+export AWS_KEY_NAME=your-key-name              # Optional: key name for auto-detection
+export AWS_SECURITY_GROUP_NAME=your-sg-name    # Optional: security group name for auto-detection
+
+# Override defaults
+export AWS_REGION=us-west-2                    # Default: us-west-2
+export INSTANCE_TYPE=g5.xlarge                 # Default: g5.xlarge (1x A100 40GB)
+export AMI_ID=ami-0076e7fffffc9251d           # Default: Ubuntu 20.04, PyTorch 2.3.1
+export SUBNET_ID=subnet-xxxxx                  # Auto-detected from security group's VPC if not set
+```
+
+**Quick Start**: Run `./tests/aws/setup_aws_resources.sh` first to get `KEY_NAME` and `SECURITY_GROUP`, then run `./tests/aws/manage_aws_instance.sh`.
 
 ## Files
 
@@ -61,9 +101,9 @@ All defaults are set automatically! Just run `./tests/aws/manage_aws_instance.sh
 
 **"Identity file not accessible" or "Permission denied" on SSH**
 - The key pair exists in AWS but the private key file is missing locally
-- If you have the key file elsewhere, copy it to: `~/.ssh/masoud-hybrid-par.pem`
+- If you have the key file elsewhere, copy it to: `~/.ssh/$KEY_NAME.pem` (where `$KEY_NAME` is your key name)
 - If you lost the key file, you'll need to create a new key pair or retrieve the key from where it was originally saved
-- Set correct permissions: `chmod 400 ~/.ssh/masoud-hybrid-par.pem`
+- Set correct permissions: `chmod 400 ~/.ssh/$KEY_NAME.pem`
 - Make sure your security group allows SSH (port 22) from your IP
 
 **"nvidia-smi not found"**
