@@ -1,13 +1,63 @@
 # distributed-zkml
 
-Distributed proving for zkml using Ray, layer-wise partitioning, and Merkle trees.
+Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed proving using Ray, layer-wise partitioning, and Merkle trees.
 
 ## Overview
 
-This repository extends [zkml](https://github.com/uiuc-kang-lab/zkml) with distributed proving capabilities:
-- **Layer-wise partitioning**: Split ML models into chunks for parallel proving
-- **Merkle trees**: Preserve privacy of intermediate values between chunks
-- **Ray integration**: Distributed execution across GPU workers
+This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs.
+
+zkml provides: An optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation.
+
+distributed-zkml adds:
+- Layer-wise partitioning: Split ML models into chunks for parallel proving across multiple GPUs
+- Merkle trees: Privacy-preserving commitments to intermediate values using Poseidon hashing
+- Ray integration: Distributed execution across GPU workers for scalable proving
+
+### Comparison to zkml
+
+| Feature | zkml | distributed-zkml |
+|---------|------|------------------|
+| Architecture | Single-machine proving | Distributed proving across multiple GPUs |
+| Scalability | Limited by single GPU memory | Horizontal scaling with multiple GPUs |
+| Privacy | Model weights private, outputs public | Intermediate values also private via Merkle trees |
+| Use Case | Small to medium models | Large models requiring distributed proving |
+| Optimization | Circuit layout optimization | Layer partitioning + Merkle tree optimization |
+
+The key difference: zkml optimizes circuit layout for a single proving instance, while distributed-zkml enables parallel proving of model chunks with privacy-preserving commitments to intermediate values.
+
+## How Distributed Proving Works
+
+### Architecture
+
+1. Model Layer Partitioning: Partition the ML model into chunks at the layer level (e.g., layers 0-2, 3-5, 6-8). Each chunk can execute on a separate GPU.
+
+2. Parallel Chunk Execution: Each chunk executes its assigned layers on a GPU. Multiple chunks run in parallel across different GPUs using Ray for task distribution.
+
+3. Merkle Tree for Privacy: Hash each chunk's intermediate outputs using Poseidon (efficient for ZK circuits). These hashes form a Merkle tree. Only the Merkle root is committed on-chain. Individual intermediate values remain private.
+
+4. On-Chain Commitment: Publish only the Merkle root (a single hash) on-chain. This proves intermediate values were computed correctly without revealing their actual values.
+
+### Example Flow
+
+```
+Model: 9 layers total
+Partition into 3 chunks:
+  Chunk 1: Layers 0-2  → GPU 1 → Output A → Hash A
+  Chunk 2: Layers 3-5  → GPU 2 → Output B → Hash B  
+  Chunk 3: Layers 6-8  → GPU 3 → Output C → Hash C
+
+Merkle Tree:
+        Root (on-chain)
+       /    \
+    Hash(AB) Hash C
+    /    \
+ Hash A  Hash B
+
+On-chain: Only the Root hash
+Private: Outputs A, B, C (never revealed)
+```
+
+The Merkle tree preserves privacy of intermediate values. Partitions enable parallel proving; the Merkle tree commits to their outputs privately.
 
 ## Structure
 
@@ -16,32 +66,31 @@ distributed-zkml/
 ├── src/                    # Distributed proving code (this repo)
 │   ├── distributed/        # Chunk execution and Merkle proofs
 │   └── ray/                # Ray integration for batch inference
-├── examples/               # Example scripts
-│   └── simple_distributed.py
 ├── tests/                  # Tests
+│   ├── simple_distributed.py  # Distributed proving simulation/test
 │   └── aws/                # AWS GPU tests
-└── zkml/                   # zkml dependency (path dependency, includes our Merkle tree modifications)
+└── zkml/                   # zkml git submodule (modified with Merkle tree support)
 ```
 
-**Note**: This is a separate Rust crate that extends zkml. The `zkml/` directory contains a modified version of zkml with our Merkle tree support.
+This is a separate Rust crate that extends zkml. The `zkml/` directory is a git submodule containing a modified version of zkml with Merkle tree support for intermediate value commitments.
 
-## What's Been Done
+## Implementation Status
 
 ### Merkle Tree Integration
 
-- **Binary Merkle tree implementation** (`zkml/src/commitments/merkle.rs`)
-  - Builds proper binary tree from intermediate values
+- Binary Merkle tree implementation (`zkml/src/commitments/merkle.rs`)
+  - Builds binary tree from intermediate values
   - Uses Poseidon hashing for efficient circuit operations
   
-- **Chunk execution** (`zkml/src/layers/dag.rs`)
+- Chunk execution (`zkml/src/layers/dag.rs`)
   - `forward_chunk()` - Execute layers in a range
   - `forward_chunk_with_merkle()` - Execute chunk and build Merkle tree
   
-- **Tests** (`zkml/testing/`)
+- Tests (`zkml/testing/`)
   - Merkle tree tests (3/3 pass)
   - Chunk execution tests (3/3 pass)
 
-Status: ✅ Code compiles, all tests pass. Ready for integration with proof generation.
+Current status: Code compiles, all tests pass. Ready for integration with proof generation.
 
 ## Quick Start
 
@@ -58,88 +107,241 @@ cd ..
 cargo build
 ```
 
-### Run Example
+### Run Test/Simulation
 
 ```bash
-python3 examples/simple_distributed.py \
+# Test/simulation with placeholder implementations
+python3 tests/simple_distributed.py \
     --model zkml/examples/mnist/model.msgpack \
     --input zkml/examples/mnist/inp.msgpack \
     --layers 4 \
     --workers 2
 ```
 
+## Testing
+
+### Python Tests (pytest)
+
+#### Run All Tests
+```bash
+pytest tests/
+```
+
+#### Run Specific Test File
+```bash
+pytest tests/aws/gpu_test.py
+```
+
+#### Run Specific Test
+```bash
+pytest tests/aws/gpu_test.py::test_aws_credentials
+```
+
+#### Run with Verbose Output
+```bash
+pytest tests/ -v
+```
+
+#### Run Directly (without pytest)
+```bash
+python3 tests/aws/gpu_test.py
+```
+
+### Rust Tests (Cargo)
+
+#### Run All Tests in zkml
+```bash
+cd zkml
+# Run only the test files (recommended)
+cargo test --test merkle_tree_test --test chunk_execution_test
+
+# Note: Running `cargo test` without --test flags will try to compile examples,
+# some of which may have errors. Use --test flags to run specific tests.
+```
+
+#### Run Specific Test File
+```bash
+cd zkml
+cargo test --test merkle_tree_test
+cargo test --test chunk_execution_test
+```
+
+#### Run Tests with Output
+```bash
+cd zkml
+cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
+```
+
+#### Run Tests for distributed-zkml Crate
+```bash
+# From distributed-zkml root
+cargo test
+```
+
+#### Check Compilation Only
+```bash
+cd zkml
+cargo check --lib
+```
+
+Note: Broken example files have been moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
+
+### Test Files
+
+#### Python Tests
+- `tests/aws/gpu_test.py` - AWS GPU tests
+  - `test_aws_credentials()` - Check AWS credentials
+  - `test_gpu_availability()` - Check GPU availability
+  - `test_ray_setup()` - Test Ray cluster setup
+
+#### Rust Tests
+- `zkml/testing/merkle_tree_test.rs` - Merkle tree tests
+  - `test_merkle_single_value()` - Single value Merkle tree
+  - `test_merkle_multiple_values()` - Multiple values Merkle tree
+  - `test_merkle_root_verification()` - Root verification
+
+- `zkml/testing/chunk_execution_test.rs` - Chunk execution tests
+  - `test_chunk_execution_intermediate_values()` - Extract intermediate values
+  - `test_chunk_execution_with_merkle()` - Chunk execution with Merkle
+  - `test_multiple_chunks_consistency()` - Multiple chunks consistency
+
 ## Testing on AWS GPUs (A100/H100)
 
 ### Prerequisites
 
-Set AWS credentials (required):
+#### AWS Credentials
+
+Set the following environment variables:
+
 ```bash
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_SESSION_TOKEN=your_session_token
 ```
 
-### Run Tests
+#### GPU Instance
+
+Launch an AWS instance with GPU support:
+- A100: `g5.xlarge` or larger (1x A100)
+- H100: `p5.48xlarge` (8x H100)
+
+#### Dependencies
 
 ```bash
+# Install Rust (nightly)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup override set nightly
+
+# Install Python dependencies
+pip install ray torch
+
+# Install CUDA drivers (usually pre-installed on GPU instances)
+nvidia-smi  # Verify GPU is available
+```
+
+### Running Tests
+
+```bash
+# From distributed-zkml root
 python3 tests/aws/gpu_test.py
 ```
 
-The test suite will:
-1. Validate AWS credentials (warns if missing)
-2. Check GPU availability via `nvidia-smi`
-3. Setup Ray cluster with GPU support
-4. Test GPU task distribution across workers
-5. Run distributed proving simulation with Merkle trees
+### Test Suite
 
-See `tests/aws/README.md` for detailed documentation.
+The test suite includes:
 
-## Testing
+1. AWS Credentials Check: Validates required environment variables
+2. GPU Availability Check: Verifies GPU is accessible via `nvidia-smi`
+3. Ray Cluster Setup: Initializes Ray with GPU support
+4. Basic GPU Distribution: Tests task distribution across GPU workers
+5. Distributed Proving Simulation: Runs distributed proving with Merkle trees
 
-### Python Tests (pytest)
-```bash
-# Run all tests
-pytest tests/
+### Expected Output
 
-# Run specific test
-pytest tests/aws/gpu_test.py::test_aws_credentials
+```
+============================================================
+AWS GPU Tests for Distributed Proving
+============================================================
+INFO: AWS credentials found
+INFO: GPU detected
+INFO: Ray initialized with 1 GPU(s)
 
-# Run directly (without pytest)
-python3 tests/aws/gpu_test.py
+--- Running: Basic GPU Distribution ---
+INFO: Testing GPU distribution with 2 workers
+INFO: Completed 4 tasks
+INFO: Task 0: Worker 0, GPU 0, Time: 2.34ms
+...
+
+--- Running: Distributed Proving Simulation ---
+INFO: Testing distributed proving simulation
+INFO: Distributed proving completed: 2 chunks
+INFO: Chunk 0: success
+INFO: Chunk 1: success
+
+============================================================
+Test Summary
+============================================================
+Basic GPU Distribution: PASS
+Distributed Proving Simulation: PASS
 ```
 
-### Rust Tests (Cargo)
-```bash
-# Run Merkle tree tests (recommended)
-cd zkml
-cargo test --test merkle_tree_test
+### Performance Notes
 
-# Run chunk execution tests (recommended)
-cargo test --test chunk_execution_test
+- A100: ~40GB VRAM, suitable for large models
+- H100: ~80GB VRAM, suitable for very large models
+- Ray automatically distributes tasks across available GPUs
+- Monitor GPU usage: `watch -n 1 nvidia-smi`
 
-# Run both test files
-cargo test --test merkle_tree_test --test chunk_execution_test
+## Troubleshooting
 
-# Run tests with output
-cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
+### Python Tests Hang
+- Make sure Ray is not imported at module level
+- Check if Ray is installed: `pip install ray`
+- Run with timeout: `pytest tests/ --timeout=10`
 
-# Check compilation only
-cargo check --lib
-```
+### Rust Tests Don't Run
+- Make sure Rust is installed: `rustc --version`
+- Add Cargo to PATH: `export PATH="$HOME/.cargo/bin:$PATH"`
+- Use nightly Rust: `rustup override set nightly` (in zkml directory)
 
-**Note**: Broken example files have been moved to `zkml/examples/broken/` to prevent compilation errors. Always use `--test` flags when running tests.
+### Tests Fail
+- Check dependencies are installed
+- Verify environment variables are set (for AWS tests)
+- Check GPU availability (for GPU tests)
 
-**Test Files:**
-- `zkml/testing/merkle_tree_test.rs` - Merkle tree tests (3 tests)
-- `zkml/testing/chunk_execution_test.rs` - Chunk execution tests (3 tests)
+### AWS GPU Testing Issues
 
-See `TESTING.md` for detailed testing instructions.
+#### "Missing AWS credentials"
+- Ensure all three environment variables are set
+- Check credentials are valid: `aws sts get-caller-identity`
+
+#### "nvidia-smi not found"
+- GPU instance may not have CUDA drivers installed
+- Install NVIDIA drivers: `sudo apt-get install nvidia-driver-535`
+
+#### "Ray initialization failed"
+- Check GPU availability: `nvidia-smi`
+- Verify Ray installation: `pip install --upgrade ray`
+
+#### "PyTorch CUDA not available"
+- Install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
 
 ## Next Steps
 
-1. **Make Merkle root public**: Add root to public values so next chunk can verify it
-2. **Complete proof generation**: Connect chunk execution to actual proof generation
-3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation
+1. Make Merkle root public: Add root to public values so next chunk can verify it
+2. Complete proof generation: Connect chunk execution to actual proof generation
+3. Ray-Rust integration: Connect Python Ray workers to Rust proof generation
+
+## References
+
+- zkml Paper: [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf) (EuroSys '24)
+  - Original zkml framework for single-machine ZK-SNARK generation
+  - Circuit layout optimization and gadget design
+  - Supports realistic ML models including vision models and DistillGPT-2
+
+- zkml Repository: [uiuc-kang-lab/zkml](https://github.com/uiuc-kang-lab/zkml)
+  - Source code for the original zkml framework
+  - TensorFlow to halo2 compiler
 
 ## Requirements
 

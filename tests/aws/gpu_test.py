@@ -15,6 +15,7 @@ import sys
 import subprocess
 import time
 import logging
+import warnings
 from typing import Optional, Dict, List
 
 # Import pytest for skip functionality
@@ -22,6 +23,9 @@ try:
     import pytest
 except ImportError:
     pytest = None
+
+# Suppress boto3 deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="botocore")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +42,11 @@ def _import_ray():
     return ray
 
 def check_aws_credentials() -> bool:
-    """Check if AWS credentials are set"""
+    """Check if AWS credentials are set
+    
+    Note: This does NOT launch AWS instances. You must manually launch
+    an AWS instance (e.g., g5.xlarge for A100) before running tests.
+    """
     required = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]
     missing = [var for var in required if not os.getenv(var)]
     
@@ -52,6 +60,7 @@ def check_aws_credentials() -> bool:
     # Verify credentials are valid (optional)
     try:
         import boto3
+        # Warnings already suppressed at module level
         sts = boto3.client('sts')
         identity = sts.get_caller_identity()
         logger.info(f"AWS account: {identity.get('Account', 'unknown')}")
@@ -63,7 +72,11 @@ def check_aws_credentials() -> bool:
     return True
 
 def check_gpu_availability() -> bool:
-    """Check if GPU is available"""
+    """Check if GPU is available
+    
+    Note: Assumes you're already on an AWS GPU instance (e.g., g5.xlarge with A100).
+    This test does NOT launch instances - you must launch one manually first.
+    """
     try:
         result = subprocess.run(
             ["nvidia-smi"],
@@ -73,6 +86,11 @@ def check_gpu_availability() -> bool:
         )
         if result.returncode == 0:
             logger.info("GPU detected")
+            # Try to identify GPU type
+            if "A100" in result.stdout:
+                logger.info("A100 GPU detected")
+            elif "H100" in result.stdout:
+                logger.info("H100 GPU detected")
             logger.info(result.stdout[:200])  # First 200 chars
             return True
         else:
@@ -80,25 +98,32 @@ def check_gpu_availability() -> bool:
             return False
     except (subprocess.TimeoutExpired, FileNotFoundError):
         logger.warning("nvidia-smi not found, assuming no GPU")
+        logger.warning("Make sure you're on an AWS GPU instance (e.g., g5.xlarge for A100)")
         return False
 
 def setup_ray_cluster(num_gpus: int = 1) -> bool:
     """Setup Ray cluster with GPU support"""
     try:
         ray = _import_ray()
-        # Suppress Ray dashboard
+        # Suppress Ray dashboard and warnings
         logging.getLogger("ray").setLevel(logging.WARNING)
+        
+        # Initialize Ray with GPU support
+        # Note: disable_usage_stats is set via environment variable, not _system_config
+        os.environ.setdefault("RAY_USAGE_STATS_ENABLED", "0")
         
         ray.init(
             ignore_reinit_error=True,
             num_gpus=num_gpus,
-            _system_config={"disable_usage_stats": True}
+            include_dashboard=False  # Disable dashboard
         )
         
         logger.info(f"Ray initialized with {num_gpus} GPU(s)")
         return True
     except Exception as e:
         logger.error(f"Failed to initialize Ray: {e}")
+        logger.error("Make sure Ray is properly installed: pip install --upgrade ray")
+        logger.error("If issues persist, try: pip install 'ray[default]'")
         return False
 
 class GPUWorker:
@@ -185,7 +210,7 @@ def _test_distributed_proving_simulation(
     
     # Import the distributed proving example
     try:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../examples"))
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
         from simple_distributed import distributed_prove_with_merkle, ChunkWorker
         
         # Use default paths if not provided
@@ -272,20 +297,23 @@ def run_all_tests() -> bool:
         ray.shutdown()
 
 # Pytest-compatible test functions
+# Note: These are lightweight tests that run with pytest.
+# For full test suite with actual GPU testing, run: python3 tests/aws/gpu_test.py
+
 def test_aws_credentials():
-    """Test that AWS credentials are checked"""
+    """Test that AWS credentials are checked (pytest)"""
     result = check_aws_credentials()
     # Don't fail if credentials are missing (just warn)
     assert True  # Always pass, credentials are optional for local testing
 
 def test_gpu_availability():
-    """Test GPU availability check"""
+    """Test GPU availability check (pytest)"""
     result = check_gpu_availability()
     # Don't fail if GPU is missing (just warn)
     assert True  # Always pass, GPU is optional for local testing
 
 def test_ray_setup():
-    """Test Ray cluster setup"""
+    """Test Ray cluster setup (pytest)"""
     try:
         ray = _import_ray()
         result = setup_ray_cluster(num_gpus=0)  # Use 0 GPUs for local testing

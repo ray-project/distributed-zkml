@@ -4,6 +4,9 @@ Minimal example: Distributed proving with Ray, layer partitioning, and Merkle tr
 
 This demonstrates the concept with the simplest possible implementation.
 For a 2-layer model split into 2 chunks.
+
+NOTE: This is a test/simulation file with placeholder implementations.
+It does not perform actual proof generation.
 """
 
 import ray
@@ -72,6 +75,9 @@ def distributed_prove_with_merkle(
     """
     Minimal example of distributed proving with Merkle trees
     
+    NOTE: This is a simulation/test function with placeholder implementations.
+    It does not perform actual proof generation.
+    
     Args:
         model_config: Path to model configuration
         input_path: Path to input data
@@ -106,7 +112,7 @@ def distributed_prove_with_merkle(
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Distributed proving example")
+    parser = argparse.ArgumentParser(description="Distributed proving example (test/simulation)")
     parser.add_argument("--model", required=True, help="Path to model.msgpack")
     parser.add_argument("--input", required=True, help="Path to input.msgpack")
     parser.add_argument("--layers", type=int, default=4, help="Number of layers")
@@ -124,3 +130,4 @@ if __name__ == "__main__":
     print("\n=== Results ===")
     for result in results:
         print(json.dumps(result, indent=2))
+
