@@ -157,18 +157,13 @@ aws ec2 terminate-instances --instance-ids "$INSTANCE_ID"
 Or use the automated script (defaults are set, so you only need security group):
 
 ```bash
-# Defaults:
-# - AMI: ami-0076e7fffffc9251d (Ubuntu 20.04, PyTorch 2.3.1)
-# - Key: masoud-hybrid-par
-# - Instance Type: g5.xlarge
-
-# Only set security group:
+# Required: Set key name and security group (get from setup script)
+export KEY_NAME=your-key-name
 export SECURITY_GROUP=sg-xxxxx
 
 # Optional: override defaults
-export KEY_NAME=your-key-name  # Default is masoud-hybrid-par
 export INSTANCE_TYPE=g5.xlarge  # Default is already g5.xlarge
-export AMI_ID=ami-xxxxx  # Only if you want a different AMI
+export AMI_ID=ami-xxxxx  # Default: ami-0076e7fffffc9251d (Ubuntu 20.04, PyTorch 2.3.1)
 
 ./tests/aws/manage_aws_instance.sh
 ```

@@ -219,6 +219,45 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_SESSION_TOKEN=your_session_token
 ```
 
+#### AWS Resource Configuration
+
+**Option 1: Automated Setup (Recommended)**
+
+Run the setup script to automatically get/create resources:
+
+```bash
+# Optional: Set custom resource names for auto-detection
+export AWS_KEY_NAME=your-key-name              # Optional: for auto-detection
+export AWS_SECURITY_GROUP_NAME=your-sg-name    # Optional: for auto-detection
+
+# Run setup script (will prompt or create resources)
+./tests/aws/setup_aws_resources.sh
+
+# Copy the export commands it shows, then set:
+export KEY_NAME=your-key-name                  # Required: from setup script
+export SECURITY_GROUP=sg-xxxxx                 # Required: from setup script
+```
+
+**Option 2: Manual Configuration**
+
+Set all required variables manually:
+
+```bash
+# Required: AWS credentials
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_SESSION_TOKEN=your_session_token
+
+# Required: Resource identifiers
+export KEY_NAME=your-key-name                  # Your EC2 key pair name
+export SECURITY_GROUP=sg-xxxxx                # Your security group ID
+
+# Optional: Override defaults
+export AWS_REGION=us-west-2                    # Default: us-west-2
+export INSTANCE_TYPE=g5.xlarge                 # Default: g5.xlarge
+export AMI_ID=ami-0076e7fffffc9251d           # Default: Ubuntu 20.04, PyTorch 2.3.1
+```
+
 #### GPU Instance
 
 Launch an AWS instance with GPU support:

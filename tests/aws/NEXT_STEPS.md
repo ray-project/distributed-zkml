@@ -3,25 +3,29 @@
 ## Quick Checklist
 
 1. ✅ **AMI is set** (default: `ami-0076e7fffffc9251d` - Ubuntu 20.04, PyTorch 2.3.1)
-2. ✅ **Key Pair is set** (default: `masoud-hybrid-par`)
-3. ⬜ **Get/Create Security Group** → Run `./tests/aws/setup_aws_resources.sh`
+2. ⬜ **Get/Create Key Pair** → Run `./tests/aws/setup_aws_resources.sh` or set `export KEY_NAME=your-key-name`
+3. ⬜ **Get/Create Security Group** → Run `./tests/aws/setup_aws_resources.sh` or set `export SECURITY_GROUP=sg-xxxxx`
 4. ⬜ **Launch and Test** → Run `./tests/aws/manage_aws_instance.sh`
 
 ## Easiest Way: Automated Setup
 
-**Run this one command to get security group set up:**
+**Run this one command to get key pair and security group set up:**
 ```bash
+# Optionally set custom names (or leave unset to auto-detect/create)
+export AWS_KEY_NAME=your-key-name  # Optional: for auto-detection
+export AWS_SECURITY_GROUP_NAME=your-sg-name  # Optional: for auto-detection
+
 ./tests/aws/setup_aws_resources.sh
 ```
 
 This will:
-- Use default key pair `masoud-hybrid-par` (or let you choose/create one)
-- Check for existing security groups with SSH (or create one)
+- Auto-detect existing key pairs (if `AWS_KEY_NAME` is set) or let you choose/create one
+- Auto-detect existing security groups (if `AWS_SECURITY_GROUP_NAME` is set) or let you choose/create one
 - Show you the export commands to run
 
 Then copy the export commands it shows and run them.
 
-**Note**: The default key pair `masoud-hybrid-par` is used automatically. If you want to use a different key, set `export KEY_NAME=your-key-name`.
+**Note**: Set `AWS_KEY_NAME` and `AWS_SECURITY_GROUP_NAME` environment variables if you want the script to auto-detect your existing resources by name. Otherwise, the script will prompt you or create new ones.
 
 ## Step-by-Step
 

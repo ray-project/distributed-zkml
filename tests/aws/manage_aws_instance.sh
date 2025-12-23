@@ -6,15 +6,15 @@ set -e
 # Configuration
 INSTANCE_TYPE="${INSTANCE_TYPE:-g5.xlarge}"  # A100 instance
 AMI_ID="${AMI_ID:-ami-0076e7fffffc9251d}"  # Default: Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.3.1 (Ubuntu 20.04)
-KEY_NAME="${KEY_NAME:-masoud-hybrid-par}"  # Default key pair name
-SECURITY_GROUP="${SECURITY_GROUP:-}"  # Default: anyscale-security-group (looked up automatically if not set)
+KEY_NAME="${KEY_NAME:-}"  # Set via KEY_NAME env var (required)
+SECURITY_GROUP="${SECURITY_GROUP:-}"  # Set via SECURITY_GROUP env var (required)
 REGION="${AWS_REGION:-us-west-2}"
 
-# Auto-detect default security group if not set
-if [ -z "$SECURITY_GROUP" ]; then
+# Auto-detect security group by name if SECURITY_GROUP is not set but AWS_SECURITY_GROUP_NAME is
+if [ -z "$SECURITY_GROUP" ] && [ -n "${AWS_SECURITY_GROUP_NAME:-}" ]; then
     DEFAULT_SG_ID=$(aws ec2 describe-security-groups \
         --region "$REGION" \
-        --filters Name=group-name,Values=anyscale-security-group Name=ip-permission.from-port,Values=22 \
+        --filters Name=group-name,Values="$AWS_SECURITY_GROUP_NAME" Name=ip-permission.from-port,Values=22 \
         --query 'SecurityGroups[0].GroupId' \
         --output text 2>/dev/null || echo "")
     if [ -n "$DEFAULT_SG_ID" ] && [ "$DEFAULT_SG_ID" != "None" ]; then
@@ -65,7 +65,7 @@ if [ -z "$AMI_ID" ] || [ -z "$KEY_NAME" ] || [ -z "$SECURITY_GROUP" ]; then
     echo -e "${YELLOW}Configuration:${NC}"
     echo "  INSTANCE_TYPE: $INSTANCE_TYPE"
     echo "  AMI_ID: ${AMI_ID:-NOT SET}"
-    echo "  KEY_NAME: ${KEY_NAME:-NOT SET} (default: masoud-hybrid-par)"
+    echo "  KEY_NAME: ${KEY_NAME:-NOT SET}"
     echo "  SECURITY_GROUP: ${SECURITY_GROUP:-NOT SET}"
     echo "  SUBNET_ID: ${SUBNET_ID:-NOT SET (will auto-detect)}"
     echo ""
@@ -80,7 +80,8 @@ if [ -z "$AMI_ID" ] || [ -z "$KEY_NAME" ] || [ -z "$SECURITY_GROUP" ]; then
     echo ""
     echo "Note:"
     echo "  - AMI_ID defaults to ami-0076e7fffffc9251d (Ubuntu 20.04, PyTorch 2.3.1)"
-    echo "  - KEY_NAME defaults to masoud-hybrid-par"
+    echo "  - KEY_NAME must be set via environment variable"
+    echo "  - SECURITY_GROUP must be set via environment variable (or AWS_SECURITY_GROUP_NAME for auto-lookup)"
     exit 1
 fi
 
