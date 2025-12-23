@@ -27,7 +27,7 @@ distributed-zkml/
 
 ## What's Been Done
 
-### Merkle Tree Integration in Rust Circuits
+### Merkle Tree Integration
 
 - **Binary Merkle tree implementation** (`zkml/src/commitments/merkle.rs`)
   - Builds proper binary tree from intermediate values
