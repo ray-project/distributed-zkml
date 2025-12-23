@@ -1,8 +1,6 @@
 //! Merkle proof structure for distributed proving
 
-use halo2_proofs::halo2curves::ff::PrimeField;
-// Note: Serialization can be added later if needed
-// use serde::{Deserialize, Serialize};
+use zkml::halo2_proofs::halo2curves::ff::PrimeField;
 
 /// Merkle proof for connecting chunks
 #[derive(Clone, Debug)]

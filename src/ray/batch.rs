@@ -76,28 +76,3 @@ pub fn initialize_shared_resources(
     Ok(Arc::new(shared))
 }
 
-/// Example of how Ray integration would work (conceptual)
-///
-/// ```rust,no_run
-/// use ray::prelude::*;
-/// 
-/// pub fn batch_inference_ray(
-///     shared: Arc<SharedResources>,
-///     inputs: Vec<InferenceInput>,
-/// ) -> Result<Vec<ProofResult>, Box<dyn std::error::Error>> {
-///     // Distribute inputs across Ray workers
-///     let results: Vec<ProofResult> = inputs
-///         .into_par_iter()
-///         .map(|input| {
-///             // This runs on Ray workers
-///             generate_proof_worker(&shared, input)
-///         })
-///         .collect::<Result<Vec<_>, _>>()?;
-///     
-///     Ok(results)
-/// }
-/// ```
-///
-/// Note: This requires the Ray Rust API which may not be available.
-/// Alternative: Use Ray Python API and call Rust functions via FFI.
-
