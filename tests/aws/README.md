@@ -87,8 +87,6 @@ export SUBNET_ID=subnet-xxxxx                  # Auto-detected from security gro
 - `manage_aws_instance.sh` - Launches instance, runs tests, shuts down
 - `find_ami.sh` - Lists available Deep Learning AMIs
 - `gpu_test.py` - Python test suite for GPU testing
-- `QUICK_START.md` - Detailed step-by-step guide
-- `NEXT_STEPS.md` - What to do after setting AMI
 - `aws_setup_guide.md` - Comprehensive AWS setup guide
 
 ## Troubleshooting

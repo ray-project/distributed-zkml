@@ -35,10 +35,8 @@ export AWS_SESSION_TOKEN=your_token
 - `setup_aws_resources.sh` - Creates/gets key pair and security group
 - `manage_aws_instance.sh` - Launches instance, runs tests, shuts down
 - `find_ami.sh` - Lists available Deep Learning AMIs
-- `README.md` - AWS testing documentation
-- `QUICK_START.md` - Detailed step-by-step guide
+- `README.md` - AWS testing documentation (includes quick start guide)
 - `aws_setup_guide.md` - Comprehensive AWS setup guide
-- `NEXT_STEPS.md` - Post-setup instructions
 
 See `aws/README.md` for detailed documentation.
 
