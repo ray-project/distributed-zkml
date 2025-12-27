@@ -25,7 +25,9 @@ proof
 
 params_kzg
 params_ipa
-examples
+# Keep examples/mnist for CI tests
+examples/*
+!examples/mnist
 testing/data
 *.diff
 
