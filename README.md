@@ -125,24 +125,10 @@ python3 tests/simple_distributed.py \
 pytest tests/
 ```
 
-#### Run Specific Test File
+#### Run specific GPU and AWS tests
 ```bash
 pytest tests/aws/gpu_test.py
-```
-
-#### Run Specific Test
-```bash
 pytest tests/aws/gpu_test.py::test_aws_credentials
-```
-
-#### Run with Verbose Output
-```bash
-pytest tests/ -v
-```
-
-#### Run Directly (without pytest)
-```bash
-python3 tests/aws/gpu_test.py
 ```
 
 ### Rust Tests (Cargo)
@@ -182,7 +168,7 @@ cd zkml
 cargo check --lib
 ```
 
-Note: Broken example files have been moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
+Broken example files are moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
 
 ### Test Files
 
@@ -276,13 +262,6 @@ pip install ray torch
 nvidia-smi  # Verify GPU is available
 ```
 
-### Running Tests
-
-```bash
-# From distributed-zkml root
-python3 tests/aws/gpu_test.py
-```
-
 ### Test Suite
 
 The test suite includes:
@@ -363,7 +342,7 @@ Distributed Proving Simulation: PASS
 #### "PyTorch CUDA not available"
 - Install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
 
-## Next Steps
+## TODO: Next Steps
 
 1. **Make Merkle root public**: Add root to public values so next chunk can verify it
 2. **Complete proof generation**: Connect chunk execution to actual proof generation
