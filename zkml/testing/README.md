@@ -1,75 +1,68 @@
-# Testing Merkle Tree Integration
+# zkml Testing
 
 ## Overview
 
-This directory contains tests for the Merkle tree integration in zkml.
+This directory contains unit and integration tests for zkml's core functionality.
+
+**These tests run in CI on every PR** - they are fast (~3-4 seconds) and don't require external resources.
+
+## Test Files
+
+| File | Status | Description |
+|------|--------|-------------|
+| `test_merkle_root_public.rs` | ✅ Working | Verifies Merkle root is added to public values |
+| `merkle_tree_test.rs` | ⚠️ Placeholder | Basic Merkle tree operations |
+| `chunk_execution_test.rs` | ⚠️ Placeholder | Chunk execution tests |
 
 ## Running Tests
-
-### Prerequisites
-
-Make sure Rust is installed and in your PATH:
-
-```bash
-# Check if Rust is installed
-rustc --version
-
-# If not in PATH, add it:
-export PATH="$HOME/.cargo/bin:$PATH"
-
-# Or add to your shell profile (~/.zshrc or ~/.bashrc):
-echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc
-```
-
-### Run Tests
 
 ```bash
 cd zkml
 
-# Run all tests
-cargo test
-
-# Run specific test file
+# Run all testing/ tests
+cargo test --test test_merkle_root_public
 cargo test --test merkle_tree_test
+cargo test --test chunk_execution_test
 
 # Run with output
-cargo test -- --nocapture
+cargo test --test test_merkle_root_public -- --nocapture
+
+# Run all tests at once
+cargo test
 ```
-
-## Test Files
-
-- `merkle_tree_test.rs` - Basic Merkle tree tests
-- `chunk_execution_test.rs` - Tests for chunk execution with Merkle trees
 
 ## What's Tested
 
-1. **Merkle Tree Building**
-   - Single value
-   - Multiple values
-   - Empty values
-   - Odd number of values
+### `test_merkle_root_public.rs` (Main Tests)
 
-2. **Chunk Execution**
-   - Executing layers in a range
-   - Extracting intermediate values
-   - Building Merkle trees from intermediate values
+1. **`test_merkle_root_in_public_values`**
+   - Compares public values WITH and WITHOUT Merkle enabled
+   - Verifies Merkle root adds exactly one public value
+   - Validates circuit with MockProver
 
-3. **Root Verification**
-   - Verifying Merkle roots match expected values
-   - Consistency checks between chunks
+2. **`test_full_model_execution_still_works`**
+   - Regression test for full model execution
+   - Ensures new chunk/Merkle code doesn't break existing functionality
 
-## Current Status
+3. **`test_chunk_execution_without_merkle`**
+   - Tests chunk execution independently of Merkle trees
+   - Verifies partial DAG execution works
 
-⚠️ **Tests are placeholders** - They need proper circuit setup to work.
+## CI Integration
 
-The Merkle tree implementation compiles successfully, but tests need:
-- Proper PoseidonCommitChip configuration
-- Circuit setup with MockProver
-- Test data preparation
+These tests run automatically on every PR via GitHub Actions (`.github/workflows/ci.yml`).
 
-## Next Steps
+**Excluded from CI:**
+- `tests/aws/` - AWS/GPU tests (run manually to save costs)
+- Benchmarks - too slow for PR checks
 
-1. Create proper test circuits
-2. Set up MockProver tests
-3. Add integration tests with real models
+## Adding New Tests
 
+1. Create a new `.rs` file in this directory
+2. Add to `zkml/Cargo.toml`:
+   ```toml
+   [[test]]
+   name = "my_new_test"
+   path = "testing/my_new_test.rs"
+   ```
+3. Tests will automatically run in CI

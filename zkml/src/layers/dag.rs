@@ -86,7 +86,7 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
       );
       let vec_inps = inp_idxes
         .iter()
-        .map(|idx| tensor_map.get(idx).unwrap().clone())
+        .map(|idx| tensor_map.get(&(*idx as usize)).unwrap().clone())
         .collect::<Vec<_>>();
 
       let out = match layer_type {
@@ -452,14 +452,14 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
 
       for (idx, tensor_idx) in out_idxes.iter().enumerate() {
         println!("Out {} shape: {:?}", idx, out[idx].shape());
-        tensor_map.insert(*tensor_idx, out[idx].clone());
+        tensor_map.insert(*tensor_idx as usize, out[idx].clone());
       }
       println!();
     }
 
     let mut final_out = vec![];
     for idx in self.dag_config.final_out_idxes.iter() {
-      final_out.push(tensor_map.get(idx).unwrap().clone());
+      final_out.push(tensor_map.get(&(*idx as usize)).unwrap().clone());
     }
 
     let _print_arr = if final_out.len() > 0 {
@@ -533,7 +533,7 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
       
       let vec_inps = inp_idxes
         .iter()
-        .map(|idx| tensor_map.get(idx).unwrap().clone())
+        .map(|idx| tensor_map.get(&(*idx as usize)).unwrap().clone())
         .collect::<Vec<_>>();
 
       // Execute the layer (same logic as forward, but only for chunk range)
@@ -900,7 +900,7 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
 
       // Store outputs in tensor map
       for (idx, tensor_idx) in out_idxes.iter().enumerate() {
-        tensor_map.insert(*tensor_idx, out[idx].clone());
+        tensor_map.insert(*tensor_idx as usize, out[idx].clone());
       }
     }
 
@@ -911,7 +911,7 @@ impl<F: PrimeField + Ord> DAGLayerChip<F> {
       let last_layer_idx = end_idx - 1;
       let out_idxes = &self.dag_config.out_idxes[last_layer_idx];
       for tensor_idx in out_idxes.iter() {
-        if let Some(tensor) = tensor_map.get(tensor_idx) {
+        if let Some(tensor) = tensor_map.get(&(*tensor_idx as usize)) {
           intermediate_tensors.push(tensor.clone());
         }
       }

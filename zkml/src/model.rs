@@ -17,6 +17,7 @@ use num_bigint::BigUint;
 use crate::{
   commitments::{
     commit::Commit,
+    merkle::MerkleTreeChip,
     packer::PackerChip,
     poseidon_commit::{PoseidonCommitChip, L, RATE, WIDTH},
   },
@@ -95,6 +96,10 @@ pub struct ModelCircuit<F: PrimeField> {
   pub bits_per_elem: usize,
   pub inp_idxes: Vec<i64>,
   pub num_random: i64,
+  // Chunk execution configuration for distributed proving
+  pub chunk_start: Option<usize>,
+  pub chunk_end: Option<usize>,
+  pub use_merkle: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -300,6 +305,22 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> ModelCircuit<F> {
     Self::generate_from_msgpack(config, true)
   }
 
+  /// Configure this circuit for chunk execution with Merkle tree
+  /// 
+  /// # Arguments
+  /// * `chunk_start` - Starting layer index (inclusive)
+  /// * `chunk_end` - Ending layer index (exclusive)
+  /// * `use_merkle` - Whether to compute Merkle root of intermediate values
+  /// 
+  /// # Returns
+  /// A mutable reference to self for method chaining
+  pub fn set_chunk_config(&mut self, chunk_start: usize, chunk_end: usize, use_merkle: bool) -> &mut Self {
+    self.chunk_start = Some(chunk_start);
+    self.chunk_end = Some(chunk_end);
+    self.use_merkle = use_merkle;
+    self
+  }
+
   pub fn generate_from_msgpack(config: ModelMsgpack, panic_empty_tensor: bool) -> ModelCircuit<F> {
     let to_field = |x: i64| {
       let bias = 1 << 31;
@@ -490,6 +511,9 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> ModelCircuit<F> {
       commit_after: config.commit_after.unwrap_or(vec![]),
       commit_before: config.commit_before.unwrap_or(vec![]),
       num_random: config.num_random.unwrap_or(0),
+      chunk_start: None,
+      chunk_end: None,
+      use_merkle: false,
     }
   }
 
@@ -814,15 +838,50 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> Circuit<F> for ModelCircuit<F> 
         .unwrap()
     };
 
-    // Perform the dag
+    // Perform the dag (either full forward or chunk execution with Merkle)
     let dag_chip = DAGLayerChip::<F>::construct(self.dag_config.clone());
-    let (final_tensor_map, result) = dag_chip.forward(
-      layouter.namespace(|| "dag"),
-      &tensors,
-      &constants,
-      config.gadget_config.clone(),
-      &LayerConfig::default(),
-    )?;
+    let (final_tensor_map, result, merkle_root_opt) = if let (Some(chunk_start), Some(chunk_end)) = (self.chunk_start, self.chunk_end) {
+      // Chunk execution mode
+      if self.use_merkle {
+        // Chunk execution with Merkle tree
+        // Get PoseidonCommitChip from config (required for Merkle tree)
+        // Note: Poseidon hasher must be configured (via commit_before/commit_after) to use Merkle trees
+        let poseidon_chip = config.hasher.as_ref()
+          .ok_or(Error::Synthesis)?;
+        let merkle_chip = MerkleTreeChip::<F>::new(poseidon_chip.clone());
+        let (tensor_map, intermediate_tensors, merkle_root) = dag_chip.forward_chunk_with_merkle(
+          layouter.namespace(|| "chunk with merkle"),
+          &tensors,
+          &constants,
+          config.gadget_config.clone(),
+          chunk_start,
+          chunk_end,
+          &merkle_chip,
+        )?;
+        (tensor_map, intermediate_tensors, Some(merkle_root))
+      } else {
+        // Chunk execution without Merkle tree
+        let (tensor_map, intermediate_tensors) = dag_chip.forward_chunk(
+          layouter.namespace(|| "chunk"),
+          &tensors,
+          &constants,
+          config.gadget_config.clone(),
+          chunk_start,
+          chunk_end,
+        )?;
+        (tensor_map, intermediate_tensors, None)
+      }
+    } else {
+      // Full model execution (default)
+      let (tensor_map, result) = dag_chip.forward(
+        layouter.namespace(|| "dag"),
+        &tensors,
+        &constants,
+        config.gadget_config.clone(),
+        &LayerConfig::default(),
+      )?;
+      (tensor_map, result, None)
+    };
 
     if self.commit_after.len() > 0 {
       for commit_idxes in self.commit_after.iter() {
@@ -850,6 +909,15 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> Circuit<F> for ModelCircuit<F> 
         .constrain_instance(cell.as_ref().cell(), config.public_col, total_idx)
         .unwrap();
       let val = convert_to_bigint(cell.value().map(|x| x.to_owned()));
+      new_public_vals.push(val);
+      total_idx += 1;
+    }
+    // Add Merkle root to public values if chunk execution with Merkle was used
+    if let Some(merkle_root) = merkle_root_opt {
+      pub_layouter
+        .constrain_instance(merkle_root.as_ref().cell(), config.public_col, total_idx)
+        .unwrap();
+      let val = convert_to_bigint(merkle_root.value().map(|x| x.to_owned()));
       new_public_vals.push(val);
       total_idx += 1;
     }
