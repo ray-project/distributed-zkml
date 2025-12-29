@@ -55,6 +55,9 @@ jobs:
           
           echo "Running chunk execution tests..."
           cargo test --test chunk_execution_test -- --nocapture
+          
+          echo "Running chunk proof generation test (release mode for speed)..."
+          cargo test --test chunk_proof_test --release -- --nocapture
       
       - name: Run clippy (warnings only)
         working-directory: zkml
