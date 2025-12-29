@@ -342,9 +342,16 @@ Distributed Proving Simulation: PASS
 #### "PyTorch CUDA not available"
 - Install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
 
+## CI
+
+Lightweight CI runs on every PR to `main` and `dev`:
+- Builds zkml library (nightly Rust)
+- Runs `zkml/testing/` tests (~3-4 min total)
+- AWS/GPU tests excluded to save costs
+
 ## TODO: Next Steps
 
-1. **Make Merkle root public**: Add root to public values so next chunk can verify it
+1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ ✅ Done
 2. **Complete proof generation**: Connect chunk execution to actual proof generation
 3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation
 4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work (Halo2 GPU support or custom GPU kernels)
