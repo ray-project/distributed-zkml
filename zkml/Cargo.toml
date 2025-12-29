@@ -89,3 +89,7 @@ path = "testing/merkle_tree_test.rs"
 [[test]]
 name = "chunk_execution_test"
 path = "testing/chunk_execution_test.rs"
+
+[[test]]
+name = "test_merkle_root_public"
+path = "testing/test_merkle_root_public.rs"

@@ -4,9 +4,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 
 ## Overview
 
-This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs.
-
-zkml provides: An optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation.
+This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs required in a distributed setting. zkml provides an optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation. High-stakes AI applications in biology or robotics are more practical with trustless verification using [ZKPs (Zero Knowledge Proofs](https://toc.csail.mit.edu/node/218), [SNARKs (Succient Non-interactive Arguments of Knowledge), and zk-SNARKs](https://cs251.stanford.edu/lectures/lecture15.pdf).
 
 distributed-zkml adds:
 - Layer-wise partitioning: Split ML models into chunks for parallel proving across multiple GPUs
@@ -127,24 +125,10 @@ python3 tests/simple_distributed.py \
 pytest tests/
 ```
 
-#### Run Specific Test File
+#### Run specific GPU and AWS tests
 ```bash
 pytest tests/aws/gpu_test.py
-```
-
-#### Run Specific Test
-```bash
 pytest tests/aws/gpu_test.py::test_aws_credentials
-```
-
-#### Run with Verbose Output
-```bash
-pytest tests/ -v
-```
-
-#### Run Directly (without pytest)
-```bash
-python3 tests/aws/gpu_test.py
 ```
 
 ### Rust Tests (Cargo)
@@ -184,7 +168,7 @@ cd zkml
 cargo check --lib
 ```
 
-Note: Broken example files have been moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
+Broken example files are moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
 
 ### Test Files
 
@@ -278,13 +262,6 @@ pip install ray torch
 nvidia-smi  # Verify GPU is available
 ```
 
-### Running Tests
-
-```bash
-# From distributed-zkml root
-python3 tests/aws/gpu_test.py
-```
-
 ### Test Suite
 
 The test suite includes:
@@ -365,7 +342,7 @@ Distributed Proving Simulation: PASS
 #### "PyTorch CUDA not available"
 - Install PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
 
-## Next Steps
+## TODO: Next Steps
 
 1. **Make Merkle root public**: Add root to public values so next chunk can verify it
 2. **Complete proof generation**: Connect chunk execution to actual proof generation

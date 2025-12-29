@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            zkml/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('zkml/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Check formatting
+        working-directory: zkml
+        run: cargo fmt --check || echo "::warning::Code formatting issues found (non-blocking)"
+        continue-on-error: true
+      
+      - name: Build zkml library
+        working-directory: zkml
+        run: cargo build --lib
+      
+      - name: Run zkml/testing tests
+        working-directory: zkml
+        run: |
+          echo "Running Merkle root public values test..."
+          cargo test --test test_merkle_root_public -- --nocapture
+          
+          echo "Running Merkle tree tests..."
+          cargo test --test merkle_tree_test -- --nocapture
+          
+          echo "Running chunk execution tests..."
+          cargo test --test chunk_execution_test -- --nocapture
+      
+      - name: Run clippy (warnings only)
+        working-directory: zkml
+        run: cargo clippy --lib -- -W clippy::all || echo "::warning::Clippy warnings found (non-blocking)"
+        continue-on-error: true
+
+  # Note: AWS tests are intentionally excluded from CI to save costs.
+  # Run them manually with: cd tests/aws && python gpu_test.py
+

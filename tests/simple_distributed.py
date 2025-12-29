@@ -20,7 +20,7 @@ from typing import Dict, List, Tuple
 logging.getLogger("ray").setLevel(logging.WARNING)
 
 # Initialize Ray
-ray.init(ignore_reinit_error=True, _system_config={"disable_usage_stats": True})
+ray.init(ignore_reinit_error=True)
 
 @ray.remote
 class ChunkWorker:
