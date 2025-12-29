@@ -168,6 +168,128 @@ pub fn time_circuit_kzg(circuit: ModelCircuit<Fr>) {
   println!("Verifying time: {:?}", verify_duration - proof_duration);
 }
 
+/// Result of proving a chunk
+pub struct ChunkProofResult {
+  /// The serialized proof bytes
+  pub proof: Vec<u8>,
+  /// Public values including Merkle root (if use_merkle=true)
+  pub public_vals: Vec<Fr>,
+  /// The Merkle root (last public value if use_merkle=true)
+  pub merkle_root: Option<Fr>,
+  /// Proving time in milliseconds
+  pub proving_time_ms: u128,
+  /// Verification time in milliseconds
+  pub verify_time_ms: u128,
+}
+
+/// Generate a KZG proof for a chunk of the model
+/// 
+/// # Arguments
+/// * `config_path` - Path to model config msgpack file
+/// * `input_path` - Path to input msgpack file
+/// * `chunk_start` - Starting layer index (inclusive)
+/// * `chunk_end` - Ending layer index (exclusive)
+/// * `use_merkle` - Whether to compute and include Merkle root in public values
+/// * `params_dir` - Directory for KZG params (will be created if needed)
+/// 
+/// # Returns
+/// ChunkProofResult containing proof, public values, and timing info
+pub fn prove_chunk_kzg(
+  config_path: &str,
+  input_path: &str,
+  chunk_start: usize,
+  chunk_end: usize,
+  use_merkle: bool,
+  params_dir: &str,
+) -> ChunkProofResult {
+  use crate::utils::loader::load_model_msgpack;
+  
+  let start = Instant::now();
+  
+  // Load and configure circuit for chunk execution
+  let config = load_model_msgpack(config_path, input_path);
+  let mut circuit = ModelCircuit::<Fr>::generate_from_file(config_path, input_path);
+  
+  // If using Merkle, ensure Poseidon hasher is configured
+  if use_merkle && circuit.commit_after.is_empty() && circuit.commit_before.is_empty() {
+    // Set commit_after to enable Poseidon hasher
+    if let Some(layer) = config.layers.get(chunk_end.saturating_sub(1)) {
+      if !layer.out_idxes.is_empty() {
+        circuit.commit_after = vec![layer.out_idxes.clone()];
+      }
+    }
+  }
+  
+  // Configure for chunk execution
+  circuit.set_chunk_config(chunk_start, chunk_end, use_merkle);
+  
+  let degree = circuit.k as u32;
+  let params = get_kzg_params(params_dir, degree);
+  
+  // Generate keys
+  let vk = keygen_vk(&params, &circuit).unwrap();
+  let pk = keygen_pk(&params, vk, &circuit).unwrap();
+  
+  // First run to get public values
+  let _mock = MockProver::run(degree, &circuit, vec![vec![]]).unwrap();
+  let public_vals = get_public_values();
+  
+  // Extract Merkle root (last public value if use_merkle)
+  let merkle_root = if use_merkle && !public_vals.is_empty() {
+    Some(public_vals[public_vals.len() - 1])
+  } else {
+    None
+  };
+  
+  // Generate proof
+  let rng = rand::thread_rng();
+  let prove_start = Instant::now();
+  let mut transcript = Blake2bWrite::<_, G1Affine, Challenge255<_>>::init(vec![]);
+  create_proof::<
+    KZGCommitmentScheme<Bn256>,
+    ProverSHPLONK<'_, Bn256>,
+    Challenge255<G1Affine>,
+    _,
+    Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
+    ModelCircuit<Fr>,
+  >(
+    &params,
+    &pk,
+    &[circuit],
+    &[&[&public_vals]],
+    rng,
+    &mut transcript,
+  )
+  .unwrap();
+  let proof = transcript.finalize();
+  let proving_time_ms = prove_start.elapsed().as_millis();
+  
+  // Verify the proof
+  let verify_start = Instant::now();
+  let strategy = SingleStrategy::new(&params);
+  let transcript_read = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+  verify_kzg(&params, pk.get_vk(), strategy, &public_vals, transcript_read);
+  let verify_time_ms = verify_start.elapsed().as_millis();
+  
+  println!(
+    "Chunk [{}, {}): proof generated in {}ms, verified in {}ms, {} public vals{}",
+    chunk_start,
+    chunk_end,
+    proving_time_ms,
+    verify_time_ms,
+    public_vals.len(),
+    if use_merkle { ", includes Merkle root" } else { "" }
+  );
+  
+  ChunkProofResult {
+    proof,
+    public_vals,
+    merkle_root,
+    proving_time_ms,
+    verify_time_ms,
+  }
+}
+
 // Standalone verification
 pub fn verify_circuit_kzg(
   circuit: ModelCircuit<Fr>,
