@@ -1,0 +1,67 @@
+name: Slow Tests
+
+# Triggers:
+# 1. Manual trigger via GitHub UI ("Run workflow" button)
+# 2. When 'run-slow-tests' label is added to a PR
+# 3. Nightly at 2am UTC (optional, commented out)
+
+on:
+  workflow_dispatch:  # Manual trigger
+  pull_request:
+    types: [labeled]
+
+# schedule:
+#   - cron: '0 2 * * *'  # Uncomment for nightly runs
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  slow-tests:
+    name: Slow Tests (KZG Proofs)
+    runs-on: ubuntu-latest
+    # Only run if manually triggered OR if the 'run-slow-tests' label was added
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-slow-tests')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            zkml/target
+          key: ${{ runner.os }}-cargo-slow-${{ hashFiles('zkml/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-slow-
+            ${{ runner.os }}-cargo-
+      
+      - name: Build zkml library (release)
+        working-directory: zkml
+        run: cargo build --lib --release
+      
+      - name: Run chunk proof generation test
+        working-directory: zkml
+        run: |
+          echo "Running KZG proof generation test (this takes ~1-2 minutes)..."
+          cargo test --test chunk_proof_test --release -- --nocapture
+      
+      - name: Summary
+        run: |
+          echo "## Slow Tests Complete ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- KZG chunk proof generation: PASSED" >> $GITHUB_STEP_SUMMARY
+
+  # Note: AWS/GPU tests are excluded from CI entirely.
+  # Run them manually: cd tests/aws && python gpu_test.py
+
