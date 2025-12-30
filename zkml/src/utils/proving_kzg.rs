@@ -190,6 +190,7 @@ pub struct ChunkProofResult {
 /// * `chunk_start` - Starting layer index (inclusive)
 /// * `chunk_end` - Ending layer index (exclusive)
 /// * `use_merkle` - Whether to compute and include Merkle root in public values
+/// * `prev_merkle_root` - Optional Merkle root from previous chunk (for chained verification)
 /// * `params_dir` - Directory for KZG params (will be created if needed)
 /// 
 /// # Returns
@@ -200,11 +201,12 @@ pub fn prove_chunk_kzg(
   chunk_start: usize,
   chunk_end: usize,
   use_merkle: bool,
+  prev_merkle_root: Option<Fr>,
   params_dir: &str,
 ) -> ChunkProofResult {
   use crate::utils::loader::load_model_msgpack;
   
-  let start = Instant::now();
+  let _start = Instant::now();
   
   // Load and configure circuit for chunk execution
   let config = load_model_msgpack(config_path, input_path);
@@ -222,6 +224,11 @@ pub fn prove_chunk_kzg(
   
   // Configure for chunk execution
   circuit.set_chunk_config(chunk_start, chunk_end, use_merkle);
+  
+  // Set previous Merkle root for chained verification (if provided)
+  if let Some(prev_root) = prev_merkle_root {
+    circuit.set_prev_merkle_root(prev_root);
+  }
   
   let degree = circuit.k as u32;
   let params = get_kzg_params(params_dir, degree);

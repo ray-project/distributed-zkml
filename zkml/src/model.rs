@@ -100,6 +100,8 @@ pub struct ModelCircuit<F: PrimeField> {
   pub chunk_start: Option<usize>,
   pub chunk_end: Option<usize>,
   pub use_merkle: bool,
+  /// Expected Merkle root from previous chunk (for chained verification)
+  pub prev_merkle_root: Option<F>,
 }
 
 #[derive(Clone, Debug)]
@@ -321,6 +323,18 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> ModelCircuit<F> {
     self
   }
 
+  /// Set the expected Merkle root from the previous chunk for verification
+  /// 
+  /// # Arguments
+  /// * `merkle_root` - The Merkle root from the previous chunk's proof
+  /// 
+  /// # Returns
+  /// A mutable reference to self for method chaining
+  pub fn set_prev_merkle_root(&mut self, merkle_root: F) -> &mut Self {
+    self.prev_merkle_root = Some(merkle_root);
+    self
+  }
+
   pub fn generate_from_msgpack(config: ModelMsgpack, panic_empty_tensor: bool) -> ModelCircuit<F> {
     let to_field = |x: i64| {
       let bias = 1 << 31;
@@ -514,6 +528,7 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> ModelCircuit<F> {
       chunk_start: None,
       chunk_end: None,
       use_merkle: false,
+      prev_merkle_root: None,
     }
   }
 
@@ -904,6 +919,29 @@ impl<F: PrimeField + Ord + FromUniformBytes<64>> Circuit<F> for ModelCircuit<F> 
     let mut pub_layouter = layouter.namespace(|| "public");
     let mut total_idx = 0;
     let mut new_public_vals = vec![];
+    
+    // If prev_merkle_root is set, add it as the first public input for chain verification
+    // This allows the verifier to check that Chunk N's input matches Chunk N-1's output
+    if let Some(prev_root) = self.prev_merkle_root {
+      let prev_root_cell = pub_layouter.assign_region(
+        || "prev merkle root",
+        |mut region| {
+          region.assign_advice(
+            || "prev_merkle_root",
+            config.gadget_config.columns[0],
+            0,
+            || Value::known(prev_root),
+          )
+        },
+      )?;
+      pub_layouter
+        .constrain_instance(prev_root_cell.cell(), config.public_col, total_idx)
+        .map_err(|_| Error::Synthesis)?;
+      let val = convert_to_bigint(prev_root_cell.value().map(|x| x.to_owned()));
+      new_public_vals.push(val);
+      total_idx += 1;
+    }
+    
     for cell in commitments.iter() {
       pub_layouter
         .constrain_instance(cell.as_ref().cell(), config.public_col, total_idx)
