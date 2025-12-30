@@ -2,6 +2,32 @@
 
 Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed proving using Ray, layer-wise partitioning, and Merkle trees.
 
+> **Note:** This project is under active development. See [Next Steps](#next-steps) for current progress.
+
+## Next Steps
+
+1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ ✅ Done
+2. **Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))
+3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))
+4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [How Distributed Proving Works](#how-distributed-proving-works)
+- [Structure](#structure)
+- [Implementation Status](#implementation-status)
+- [Quick Start](#quick-start)
+- [Testing](#testing)
+- [Testing on AWS GPUs](#testing-on-aws-gpus-a100h100)
+- [CI](#ci)
+- [References](#references)
+- [Requirements](#requirements)
+
+---
+
 ## Overview
 
 This repository extends zkml (see [ZKML: An Optimizing System for ML Inference in Zero-Knowledge Proofs](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf)) with distributed proving capabilities. The zkml repository is included as a git submodule in the `zkml/` directory and modified to support Merkle tree commitments for intermediate layer outputs required in a distributed setting. zkml provides an optimizing compiler from TensorFlow to halo2 ZK-SNARK circuits for single-machine proof generation. High-stakes AI applications in biology or robotics are more practical with trustless verification using [ZKPs (Zero Knowledge Proofs](https://toc.csail.mit.edu/node/218), [SNARKs (Succient Non-interactive Arguments of Knowledge), and zk-SNARKs](https://cs251.stanford.edu/lectures/lecture15.pdf).
@@ -323,19 +349,6 @@ Lightweight CI runs on every PR to `main` and `dev`:
 - Builds zkml library (nightly Rust)
 - Runs `zkml/testing/` tests (~3-4 min total)
 - AWS/GPU tests excluded to save costs
-
-## TODO: Next Steps
-
-1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ ✅ Done
-2. **Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))
-3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))
-4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
-
-### GPU Performance Benchmarking
-
-- Compare CPU vs GPU proving times
-- Test with larger models (A100: 40GB, H100: 80GB)
-- Measure throughput scaling with multiple GPUs
 
 ## References
 
