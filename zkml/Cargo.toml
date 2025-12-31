@@ -16,9 +16,11 @@ exclude = [
 
 [dependencies]
 bitvec = "1.0.1"
+clap = { version = "4.4", features = ["derive"] }
 halo2 = { path = "halo2/halo2"}
 halo2_gadgets = { path = "halo2/halo2_gadgets", features = ["circuit-params"] }
 halo2_proofs = { path = "halo2/halo2_proofs", features = ["circuit-params"] }
+hex = "0.4"
 lazy_static = "1.4.0"
 ndarray = "0.15.6"
 num-bigint = "0.4.3"
