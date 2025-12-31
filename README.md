@@ -8,7 +8,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 
 1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
 2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
-3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))
+3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
 4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
 
 ---
@@ -19,7 +19,6 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 - [Implementation](#implementation)
   - [How Distributed Proving Works](#how-distributed-proving-works)
   - [Structure](#structure)
-  - [Implementation Status](#implementation-status)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
   - [Testing](#testing)
@@ -100,34 +99,15 @@ With Merkle trees, only the root is public—**O(1) public values**. The next ch
 
 ```
 distributed-zkml/
-├── src/                    # Distributed proving code (this repo)
-│   ├── distributed/        # Chunk execution and Merkle proofs
-│   └── ray/                # Ray integration for batch inference
+├── python/                 # Python wrappers for Rust prover
+│   └── rust_prover.py      # Python interface to prove_chunk CLI
 ├── tests/                  # Tests
-│   ├── simple_distributed.py  # Distributed proving simulation/test
+│   ├── simple_distributed.py  # Distributed proving with Ray
 │   └── aws/                # AWS GPU tests
-└── zkml/                   # zkml git submodule (modified with Merkle tree support)
+└── zkml/                   # zkml (modified with Merkle tree + chunk proving)
+    ├── src/bin/prove_chunk.rs  # CLI for chunk proof generation
+    └── testing/            # Rust test suites
 ```
-
-This is a separate Rust crate that extends zkml. The `zkml/` directory is a git submodule containing a modified version of zkml with Merkle tree support for intermediate value commitments.
-
-### Implementation Status
-
-#### Merkle Tree Integration
-
-- Binary Merkle tree implementation (`zkml/src/commitments/merkle.rs`)
-  - Builds binary tree from intermediate values
-  - Uses Poseidon hashing for efficient circuit operations
-  
-- Chunk execution (`zkml/src/layers/dag.rs`)
-  - `forward_chunk()` - Execute layers in a range
-  - `forward_chunk_with_merkle()` - Execute chunk and build Merkle tree
-  
-- Tests (`zkml/testing/`)
-  - Merkle tree tests (3/3 pass)
-  - Chunk execution tests (3/3 pass)
-
-Current status: Code compiles, all tests pass. Ready for integration with proof generation.
 
 ## Quick Start
 
@@ -144,20 +124,28 @@ cd ..
 cargo build
 ```
 
-### Run Test/Simulation
+### Run Distributed Proving
 
 ```bash
-# Test/simulation with placeholder implementations
+# Simulation mode (fast, no actual proofs)
 python3 tests/simple_distributed.py \
     --model zkml/examples/mnist/model.msgpack \
     --input zkml/examples/mnist/inp.msgpack \
     --layers 4 \
     --workers 2
+
+# Real mode (generates actual ZK proofs, ~2-3s per chunk)
+python3 tests/simple_distributed.py \
+    --model zkml/examples/mnist/model.msgpack \
+    --input zkml/examples/mnist/inp.msgpack \
+    --layers 4 \
+    --workers 2 \
+    --real
 ```
 
 ## Testing and CI
 
-### Testing
+### General
 
 #### Python Tests (pytest)
 
