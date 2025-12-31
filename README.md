@@ -6,8 +6,8 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 
 ## Next Steps
 
-1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ ✅ Done
-2. **Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))
+1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
+2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
 3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))
 4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
 
@@ -16,13 +16,15 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 ## Table of Contents
 
 - [Overview](#overview)
-- [How Distributed Proving Works](#how-distributed-proving-works)
-- [Structure](#structure)
-- [Implementation Status](#implementation-status)
+- [Implementation](#implementation)
+  - [How Distributed Proving Works](#how-distributed-proving-works)
+  - [Structure](#structure)
+  - [Implementation Status](#implementation-status)
 - [Quick Start](#quick-start)
-- [Testing](#testing)
-- [Testing on AWS GPUs](#testing-on-aws-gpus-a100h100)
-- [CI](#ci)
+- [Testing and CI](#testing-and-ci)
+  - [Testing](#testing)
+  - [Testing on AWS GPU Instances](#testing-on-aws-gpu-instances)
+  - [CI](#ci)
 - [References](#references)
 - [Requirements](#requirements)
 
@@ -49,9 +51,11 @@ distributed-zkml adds:
 
 The key difference: zkml optimizes circuit layout for a single proving instance, while distributed-zkml enables parallel proving of model chunks with privacy-preserving commitments to intermediate values.
 
-## How Distributed Proving Works
+## Implementation
 
-### Architecture
+### How Distributed Proving Works
+
+#### Architecture
 
 1. Model Layer Partitioning: Partition the ML model into chunks at the layer level (e.g., layers 0-2, 3-5, 6-8). Each chunk can execute on a separate GPU.
 
@@ -61,7 +65,7 @@ The key difference: zkml optimizes circuit layout for a single proving instance,
 
 4. On-Chain Commitment: Publish only the Merkle root (a single hash) on-chain. This proves intermediate values were computed correctly without revealing their actual values.
 
-### Example Flow
+#### Example Flow
 
 ```
 Model: 9 layers total
@@ -81,7 +85,7 @@ On-chain: Only the Root hash
 Private: Outputs A, B, C (never revealed)
 ```
 
-### Why Merkle Trees?
+#### Why Merkle Trees?
 
 Without Merkle trees, all intermediate values must be public for the next chunk to verify them—**O(n) public values**, which is expensive in ZK circuits.
 
@@ -92,7 +96,7 @@ With Merkle trees, only the root is public—**O(1) public values**. The next ch
 | No Merkle | O(n) | O(1) per value | All intermediate values exposed |
 | Merkle | O(1) | O(log n) per value | Only root exposed |
 
-## Structure
+### Structure
 
 ```
 distributed-zkml/
@@ -107,9 +111,9 @@ distributed-zkml/
 
 This is a separate Rust crate that extends zkml. The `zkml/` directory is a git submodule containing a modified version of zkml with Merkle tree support for intermediate value commitments.
 
-## Implementation Status
+### Implementation Status
 
-### Merkle Tree Integration
+#### Merkle Tree Integration
 
 - Binary Merkle tree implementation (`zkml/src/commitments/merkle.rs`)
   - Builds binary tree from intermediate values
@@ -151,24 +155,26 @@ python3 tests/simple_distributed.py \
     --workers 2
 ```
 
-## Testing
+## Testing and CI
 
-### Python Tests (pytest)
+### Testing
 
-#### Run All Tests
+#### Python Tests (pytest)
+
+##### Run All Tests
 ```bash
 pytest tests/
 ```
 
-#### Run specific GPU and AWS tests
+##### Run specific GPU and AWS tests
 ```bash
 pytest tests/aws/gpu_test.py
 pytest tests/aws/gpu_test.py::test_aws_credentials
 ```
 
-### Rust Tests (Cargo)
+#### Rust Tests (Cargo)
 
-#### Run All Tests in zkml
+##### Run All Tests in zkml
 ```bash
 cd zkml
 # Run only the test files (recommended)
@@ -178,26 +184,26 @@ cargo test --test merkle_tree_test --test chunk_execution_test
 # some of which may have errors. Use --test flags to run specific tests.
 ```
 
-#### Run Specific Test File
+##### Run Specific Test File
 ```bash
 cd zkml
 cargo test --test merkle_tree_test
 cargo test --test chunk_execution_test
 ```
 
-#### Run Tests with Output
+##### Run Tests with Output
 ```bash
 cd zkml
 cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
 ```
 
-#### Run Tests for distributed-zkml Crate
+##### Run Tests for distributed-zkml Crate
 ```bash
 # From distributed-zkml root
 cargo test
 ```
 
-#### Check Compilation Only
+##### Check Compilation Only
 ```bash
 cd zkml
 cargo check --lib
@@ -205,15 +211,15 @@ cargo check --lib
 
 Broken example files are moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
 
-### Test Files
+#### Test Files
 
-#### Python Tests
+##### Python Tests
 - `tests/aws/gpu_test.py` - AWS GPU tests
   - `test_aws_credentials()` - Check AWS credentials
   - `test_gpu_availability()` - Check GPU availability
   - `test_ray_setup()` - Test Ray cluster setup
 
-#### Rust Tests
+##### Rust Tests
 - `zkml/testing/merkle_tree_test.rs` - Merkle tree tests
   - `test_merkle_single_value()` - Single value Merkle tree
   - `test_merkle_multiple_values()` - Multiple values Merkle tree
@@ -224,11 +230,11 @@ Broken example files are moved to `zkml/examples/broken/` to prevent compilation
   - `test_chunk_execution_with_merkle()` - Chunk execution with Merkle
   - `test_multiple_chunks_consistency()` - Multiple chunks consistency
 
-## Testing on AWS GPUs (A100/H100)
+### Testing on AWS GPU Instances
 
-### Prerequisites
+#### Prerequisites
 
-#### AWS Credentials
+##### AWS Credentials
 
 Set the following environment variables:
 
@@ -238,7 +244,7 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_SESSION_TOKEN=your_session_token
 ```
 
-#### AWS Resource Configuration
+##### AWS Resource Configuration
 
 **Option 1: Automated Setup (Recommended)**
 
@@ -277,13 +283,13 @@ export INSTANCE_TYPE=g5.xlarge                 # Default: g5.xlarge
 export AMI_ID=ami-0076e7fffffc9251d           # Default: Ubuntu 20.04, PyTorch 2.3.1
 ```
 
-#### GPU Instance
+##### GPU Instance
 
 Launch an AWS instance with GPU support:
 - A100: `g5.xlarge` or larger (1x A100)
 - H100: `p5.48xlarge` (8x H100)
 
-#### Dependencies
+##### Dependencies
 
 ```bash
 # Install Rust (nightly)
@@ -297,7 +303,7 @@ pip install ray torch
 nvidia-smi  # Verify GPU is available
 ```
 
-### Test Suite
+#### Test Suite
 
 The test suite includes:
 
@@ -307,7 +313,7 @@ The test suite includes:
 4. Basic GPU Distribution: Tests task distribution across GPU workers
 5. Distributed Proving Simulation: Runs distributed proving with Merkle trees
 
-### Expected Output
+#### Expected Output
 
 ```
 ============================================================
@@ -336,14 +342,14 @@ Basic GPU Distribution: PASS
 Distributed Proving Simulation: PASS
 ```
 
-### Performance Notes
+#### Performance Notes
 
 - A100: ~40GB VRAM, suitable for large models
 - H100: ~80GB VRAM, suitable for very large models
 - Ray automatically distributes tasks across available GPUs
 - Monitor GPU usage: `watch -n 1 nvidia-smi`
 
-## CI
+### CI
 
 Lightweight CI runs on every PR to `main` and `dev`:
 - Builds zkml library (nightly Rust)
