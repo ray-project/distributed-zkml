@@ -8,7 +8,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 
 1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
 2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
-3. **Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))
+3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
 4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
 
 ---
