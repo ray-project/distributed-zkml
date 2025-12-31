@@ -21,7 +21,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
   - [Structure](#structure)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
-  - [Testing](#testing)
+  - [General](#general)
   - [Testing on AWS GPU Instances](#testing-on-aws-gpu-instances)
   - [CI](#ci)
 - [References](#references)
