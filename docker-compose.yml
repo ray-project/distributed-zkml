@@ -1,0 +1,68 @@
+# Docker Compose for distributed-zkml
+# Usage:
+#   docker compose build        # Build images
+#   docker compose run dev      # Interactive development shell
+#   docker compose run test     # Run tests
+#   docker compose run gpu      # GPU-enabled shell (requires NVIDIA runtime)
+
+services:
+  # Development environment with full toolchain
+  dev:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+      - cargo-cache:/root/.cargo/registry
+      - target-cache:/app/zkml/target
+      - venv-cache:/opt/venv
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    entrypoint: ["/bin/bash", "-c", "uv sync --frozen 2>/dev/null || uv sync; exec bash"]
+
+  # Run tests
+  test:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+      - cargo-cache:/root/.cargo/registry
+      - target-cache:/app/zkml/target
+      - venv-cache:/opt/venv
+    working_dir: /app/zkml
+    entrypoint: ["/bin/bash", "-c", "cd /app && (uv sync --frozen 2>/dev/null || uv sync) && cd /app/zkml && exec cargo test --test merkle_tree_test --test chunk_execution_test --test test_merkle_root_public -- --nocapture"]
+
+  # GPU-enabled runtime (requires nvidia-docker)
+  gpu:
+    build:
+      context: .
+      target: runtime
+    volumes:
+      - ./zkml/examples:/app/zkml/examples
+      - ./params_kzg:/app/params_kzg
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+
+  # Production runtime
+  runtime:
+    build:
+      context: .
+      target: runtime
+    volumes:
+      - ./zkml/examples:/app/zkml/examples:ro
+      - ./params_kzg:/app/params_kzg
+
+volumes:
+  cargo-cache:
+  target-cache:
+  venv-cache:
+

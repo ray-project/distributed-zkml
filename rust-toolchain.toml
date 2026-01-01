@@ -1,0 +1,8 @@
+# Pinned Rust toolchain for reproducible builds
+# Update this version carefully - test CI before merging
+
+[toolchain]
+channel = "nightly-2024-12-01"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-unknown-linux-gnu"]
+
