@@ -25,7 +25,6 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
   - [Testing on AWS GPU Instances](#testing-on-aws-gpu-instances)
   - [CI](#ci)
 - [References](#references)
-- [Requirements](#requirements)
 
 ---
 
@@ -111,7 +110,20 @@ distributed-zkml/
 
 ## Quick Start
 
-### Build
+### Option 1: Docker (Recommended)
+
+```bash
+# Build the development image
+docker compose build dev
+
+# Run interactive shell
+docker compose run --rm dev
+
+# Run tests
+docker compose run --rm test
+```
+
+### Option 2: Native Build
 
 ```bash
 # Ensure zkml is built first
@@ -120,8 +132,8 @@ rustup override set nightly
 cargo build --release
 cd ..
 
-# Build distributed-zkml
-cargo build
+# Install Python dependencies
+uv sync  # or: pip install -e .
 ```
 
 ### Run Distributed Proving
@@ -354,13 +366,6 @@ Lightweight CI runs on every PR to `main` and `dev`:
 - zkml Repository: [uiuc-kang-lab/zkml](https://github.com/uiuc-kang-lab/zkml)
   - Source code for the original zkml framework
   - TensorFlow to halo2 compiler
-
-## Requirements
-
-- Rust (nightly)
-- Ray (Python)
-- CUDA drivers (for GPU testing)
-- Model files in msgpack format
 
 ## License
 

@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target/
+zkml/target/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Params (large files, should be mounted or downloaded)
+params/
+params_kzg/
+params_ipa/
+*.params
+
+# Proofs (generated at runtime)
+proof
+proof_output/
+*.bin
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+

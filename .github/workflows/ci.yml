@@ -20,8 +20,9 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2024-12-01
           components: rustfmt, clippy
       
       - name: Cache cargo registry
@@ -64,6 +65,31 @@ jobs:
         run: cargo clippy --lib -- -W clippy::all || echo "::warning::Clippy warnings found (non-blocking)"
         continue-on-error: true
 
-  # Note: AWS tests are intentionally excluded from CI to save costs.
-  # Run them manually with: cd tests/aws && python gpu_test.py
+  # Docker build - only runs when Docker-related files change
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.title, 'docker') ||
+      contains(github.event.pull_request.title, 'Docker') ||
+      contains(github.event.head_commit.message, 'docker') ||
+      contains(github.event.head_commit.message, 'Docker')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build dev image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: dev
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: distributed-zkml:dev
 
+  # Note: AWS/GPU tests are intentionally excluded from CI to save costs.
