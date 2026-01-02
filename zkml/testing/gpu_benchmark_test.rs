@@ -32,20 +32,20 @@ mod tests {
         let cuda_device = Device::new("CUDA", 0);
         match icicle_runtime::set_device(&cuda_device) {
             Ok(_) => {
-                println!("✓ Successfully set CUDA device 0");
+                println!("Successfully set CUDA device 0");
                 
-                // Get device properties
-                if let Ok(props) = icicle_runtime::get_device_properties(&cuda_device) {
+                // Get device properties (for currently active device)
+                if let Ok(props) = icicle_runtime::get_device_properties() {
                     println!("  Device properties: {:?}", props);
                 }
             }
             Err(e) => {
-                println!("✗ Failed to set CUDA device: {:?}", e);
+                println!("Failed to set CUDA device: {:?}", e);
                 println!("  This is expected if running without GPU");
             }
         }
 
-        println!("\n✓ ICICLE runtime initialized successfully");
+        println!("\nICICLE runtime initialized successfully");
     }
 
     /// Benchmark MSM on GPU vs CPU reference
@@ -59,7 +59,7 @@ mod tests {
         let gpu_available = icicle_runtime::set_device(&cuda_device).is_ok();
 
         if !gpu_available {
-            println!("⚠ GPU not available, skipping GPU benchmark");
+            println!("GPU not available, skipping GPU benchmark");
             println!("  Run on a machine with NVIDIA GPU and CUDA installed");
             return;
         }
@@ -94,7 +94,7 @@ mod tests {
             );
         }
 
-        println!("\n✓ GPU MSM benchmark complete");
+        println!("\nGPU MSM benchmark complete");
     }
 
     /// Test basic GPU MSM correctness
@@ -105,7 +105,7 @@ mod tests {
 
         let cuda_device = Device::new("CUDA", 0);
         if icicle_runtime::set_device(&cuda_device).is_err() {
-            println!("⚠ GPU not available, skipping test");
+            println!("GPU not available, skipping test");
             return;
         }
 
@@ -133,8 +133,8 @@ mod tests {
             "MSM result should not be zero"
         );
 
-        println!("✓ GPU MSM produces non-zero result");
-        println!("✓ Correctness test passed");
+        println!("GPU MSM produces non-zero result");
+        println!("Correctness test passed");
     }
 
     /// CPU-only test that always runs (no GPU feature required)
@@ -153,7 +153,7 @@ mod tests {
             println!("To enable GPU: cargo test --features gpu");
         }
 
-        println!("✓ CPU baseline test passed");
+        println!("CPU baseline test passed");
     }
 }
 
