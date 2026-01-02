@@ -1,6 +1,7 @@
 //! # halo2_proofs
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(feature = "gpu", feature(min_specialization))]
 // Build without warnings on stable 1.51 and later.
 #![allow(unknown_lints)]
 // Disable old lint warnings until our MSRV is at least 1.51.
@@ -31,6 +32,8 @@ pub mod fft;
 
 #[cfg(feature = "gpu")]
 pub mod gpu_msm;
+#[cfg(feature = "gpu")]
+pub mod gpu_ntt;
 pub use halo2curves;
 mod multicore;
 pub mod plonk;

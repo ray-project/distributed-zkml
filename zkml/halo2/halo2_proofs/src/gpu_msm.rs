@@ -3,24 +3,45 @@
 //! This module provides GPU acceleration for Multi-Scalar Multiplication (MSM)
 //! operations using the ICICLE library with CUDA backend.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    env,
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 
-use icicle_bn254::curve::{CurveCfg, G1Projective, ScalarCfg};
-use icicle_core::curve::Affine;
+use icicle_bn254::curve::{
+    G1Affine as IcicleAffine, 
+    G1Projective as IcicleProjective,
+    ScalarField as IcicleScalar,
+    BaseField as IcicleBase,
+};
 use icicle_core::msm::{msm, MSMConfig};
 use icicle_core::traits::FieldImpl;
 use icicle_runtime::device::Device;
 use icicle_runtime::memory::HostSlice;
 
-use crate::halo2curves::bn256::{Fr, G1Affine, G1};
-use group::Curve;
+use crate::halo2curves::bn256::{Fq, Fr, G1Affine, G1};
+use crate::halo2curves::CurveAffine;
+use group::ff::{Field, PrimeField};
+use group::prime::PrimeCurveAffine;
+use group::{Curve, Group};
 
 /// Global flag indicating if GPU is available and initialized
 static GPU_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static GPU_AVAILABLE: AtomicBool = AtomicBool::new(false);
+static GPU_MSM_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 /// Minimum size for GPU MSM to be beneficial (below this, CPU is faster)
-const GPU_MSM_MIN_SIZE: usize = 1 << 10; // 1024 points
+pub const GPU_MSM_MIN_SIZE: usize = 1 << 10; // 1024 points
+
+/// Number of successful GPU MSM calls (for tests/benchmarks).
+pub fn gpu_msm_call_count() -> usize {
+    GPU_MSM_CALLS.load(Ordering::Relaxed)
+}
+
+/// Reset the GPU MSM call counter (for tests).
+pub fn reset_gpu_msm_call_count() {
+    GPU_MSM_CALLS.store(0, Ordering::Relaxed);
+}
 
 /// Initialize ICICLE GPU backend
 /// Returns true if GPU is available and initialized successfully
@@ -31,7 +52,7 @@ pub fn init_gpu() -> bool {
     }
 
     // Try to load backend
-    if let Err(_) = icicle_runtime::load_backend_from_env_or_default() {
+    if icicle_runtime::load_backend_from_env_or_default().is_err() {
         GPU_INITIALIZED.store(true, Ordering::Relaxed);
         GPU_AVAILABLE.store(false, Ordering::Relaxed);
         return false;
@@ -63,35 +84,59 @@ pub fn is_gpu_available() -> bool {
 
 /// Convert halo2curves Fr to ICICLE scalar
 #[inline]
-fn fr_to_icicle_scalar(fr: &Fr) -> <ScalarCfg as FieldImpl>::Scalar {
-    let bytes = fr.to_bytes();
-    <ScalarCfg as FieldImpl>::Scalar::from_bytes_le(&bytes)
+fn fr_to_icicle(fr: &Fr) -> IcicleScalar {
+    let repr = fr.to_repr();
+    IcicleScalar::from_bytes_le(repr.as_ref())
+}
+
+/// Convert halo2curves Fq to ICICLE base field
+#[inline]
+fn fq_to_icicle(fq: &Fq) -> IcicleBase {
+    let repr = fq.to_repr();
+    IcicleBase::from_bytes_le(repr.as_ref())
 }
 
 /// Convert halo2curves G1Affine to ICICLE affine point
 #[inline]
-fn g1_to_icicle_affine(point: &G1Affine) -> Affine<CurveCfg> {
-    let x_bytes = point.x.to_bytes();
-    let y_bytes = point.y.to_bytes();
-
-    Affine::<CurveCfg>::from_limbs(
-        <CurveCfg as icicle_core::curve::Curve>::BaseField::from_bytes_le(&x_bytes).into(),
-        <CurveCfg as icicle_core::curve::Curve>::BaseField::from_bytes_le(&y_bytes).into(),
-    )
+fn g1_to_icicle(point: &G1Affine) -> IcicleAffine {
+    if bool::from(point.is_identity()) {
+        return IcicleAffine::zero();
+    }
+    IcicleAffine {
+        x: fq_to_icicle(&point.x),
+        y: fq_to_icicle(&point.y),
+    }
 }
 
 /// Convert ICICLE projective point back to halo2curves G1
-#[inline]
-fn icicle_projective_to_g1(point: &G1Projective) -> G1 {
-    let affine = icicle_core::curve::Projective::to_affine(point);
-
-    let x_bytes: [u8; 32] = affine.x.to_bytes_le().try_into().unwrap();
-    let y_bytes: [u8; 32] = affine.y.to_bytes_le().try_into().unwrap();
-
-    let x = crate::halo2curves::bn256::Fq::from_bytes(&x_bytes).unwrap();
-    let y = crate::halo2curves::bn256::Fq::from_bytes(&y_bytes).unwrap();
-
-    G1Affine::from_xy(x, y).unwrap().into()
+fn icicle_to_g1(point: &IcicleProjective) -> G1 {
+    if *point == IcicleProjective::zero() {
+        return G1::identity();
+    }
+    
+    // Get bytes from ICICLE coordinates
+    let x_bytes = point.x.to_bytes_le();
+    let y_bytes = point.y.to_bytes_le();
+    let z_bytes = point.z.to_bytes_le();
+    
+    // Convert to halo2curves Fq - need to handle the 32-byte array
+    let x_arr: [u8; 32] = x_bytes.as_slice().try_into().expect("x bytes");
+    let y_arr: [u8; 32] = y_bytes.as_slice().try_into().expect("y bytes");  
+    let z_arr: [u8; 32] = z_bytes.as_slice().try_into().expect("z bytes");
+    
+    let x = Fq::from_repr(x_arr).expect("valid x");
+    let y = Fq::from_repr(y_arr).expect("valid y");
+    let z = Fq::from_repr(z_arr).expect("valid z");
+    
+    // ICICLE uses standard projective: (X:Y:Z) where x=X/Z, y=Y/Z
+    // Convert to affine: x = X/Z, y = Y/Z
+    let z_inv = z.invert().expect("non-zero z");
+    let affine_x = x * z_inv;
+    let affine_y = y * z_inv;
+    
+    // Create affine point then convert to projective
+    let affine = G1Affine::from_xy(affine_x, affine_y).expect("valid affine point");
+    affine.to_curve()
 }
 
 /// Perform GPU-accelerated MSM
@@ -103,8 +148,8 @@ pub fn gpu_msm(scalars: &[Fr], bases: &[G1Affine]) -> Option<G1> {
         return None;
     }
 
-    // Don't use GPU for small MSMs
-    if scalars.len() < GPU_MSM_MIN_SIZE {
+    // Don't use GPU for small MSMs unless explicitly forced.
+    if scalars.len() < GPU_MSM_MIN_SIZE && env::var_os("HALO2_FORCE_GPU_MSM").is_none() {
         return None;
     }
 
@@ -114,13 +159,13 @@ pub fn gpu_msm(scalars: &[Fr], bases: &[G1Affine]) -> Option<G1> {
     }
 
     // Convert scalars to ICICLE format
-    let icicle_scalars: Vec<_> = scalars.iter().map(fr_to_icicle_scalar).collect();
+    let icicle_scalars: Vec<IcicleScalar> = scalars.iter().map(fr_to_icicle).collect();
 
-    // Convert bases to ICICLE format
-    let icicle_bases: Vec<_> = bases.iter().map(g1_to_icicle_affine).collect();
+    // Convert bases to ICICLE format  
+    let icicle_bases: Vec<IcicleAffine> = bases.iter().map(g1_to_icicle).collect();
 
     // Perform MSM
-    let mut result = vec![G1Projective::zero(); 1];
+    let mut result = vec![IcicleProjective::zero(); 1];
     let cfg = MSMConfig::default();
 
     match msm(
@@ -129,7 +174,10 @@ pub fn gpu_msm(scalars: &[Fr], bases: &[G1Affine]) -> Option<G1> {
         &cfg,
         HostSlice::from_mut_slice(&mut result),
     ) {
-        Ok(_) => Some(icicle_projective_to_g1(&result[0])),
+        Ok(_) => {
+            GPU_MSM_CALLS.fetch_add(1, Ordering::Relaxed);
+            Some(icicle_to_g1(&result[0]))
+        }
         Err(_) => None,
     }
 }

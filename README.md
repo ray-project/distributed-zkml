@@ -9,7 +9,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
 2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
 3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
-4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
+4. **GPU acceleration**: ICICLE GPU backend integrated for MSM operations. See [GPU Acceleration](#gpu-acceleration) for setup. ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
 
 ---
 
@@ -20,6 +20,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
   - [How Distributed Proving Works](#how-distributed-proving-works)
   - [Structure](#structure)
 - [Requirements](#requirements)
+- [GPU Acceleration](#gpu-acceleration)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
   - [CI](#ci)
@@ -131,8 +132,8 @@ distributed-zkml/
 
 **Optional:**
 - `pytest` - For running tests (dev dependencies)
-- `torch` - For GPU acceleration
-- CUDA/GPU drivers - For GPU-accelerated proving
+- NVIDIA GPU + CUDA 12.x - For GPU-accelerated proving ops
+- ICICLE backend - GPU MSM/NTT acceleration (see [GPU Acceleration](#gpu-acceleration))
 
 ### Quick Reference
 
@@ -144,6 +145,87 @@ distributed-zkml/
 | uv/pip | Included | Required | Python package manager |
 | Ray | Included | Required | <2.11.0 for macOS x86_64 |
 | Build tools | Included | Required | System-specific |
+
+---
+
+---
+
+## GPU Acceleration
+
+GPU acceleration uses [ICICLE](https://github.com/ingonyama-zk/icicle) for GPU-accelerated MSM (Multi-Scalar Multiplication) operations.
+
+### GPU Requirements
+
+- NVIDIA GPU (tested on A10G, compatible with A100/H100)
+- CUDA 12.x drivers
+- Ubuntu 20.04+ (Ubuntu 22.04 recommended)
+
+### GPU Setup
+
+1. **Download ICICLE backend** (match your Ubuntu version):
+
+```bash
+# Ubuntu 22.04
+curl -L -o /tmp/icicle.tar.gz \\
+  https://github.com/ingonyama-zk/icicle/releases/download/v3.1.0/icicle_3_1_0-ubuntu22-cuda122.tar.gz
+
+# Ubuntu 20.04
+curl -L -o /tmp/icicle.tar.gz \\
+  https://github.com/ingonyama-zk/icicle/releases/download/v3.1.0/icicle_3_1_0-ubuntu20-cuda122.tar.gz
+```
+
+2. **Install backend**:
+
+```bash
+mkdir -p ~/.icicle
+tar -xzf /tmp/icicle.tar.gz -C /tmp
+cp -r /tmp/icicle/lib/backend ~/.icicle/
+```
+
+3. **Set environment variable** (add to ~/.bashrc):
+
+```bash
+export ICICLE_BACKEND_INSTALL_DIR=~/.icicle/backend
+```
+
+4. **Build with GPU support**:
+
+```bash
+cd zkml
+cargo build --release --features gpu
+```
+
+5. **Verify GPU detection**:
+
+```bash
+ICICLE_BACKEND_INSTALL_DIR=~/.icicle/backend \\
+  cargo test --test gpu_benchmark_test --release --features gpu -- --nocapture
+```
+
+Expected output:
+```
+Registered devices: ["CUDA", "CPU"]
+Successfully set CUDA device 0
+```
+
+### Benchmark Results
+
+Tested on 4x NVIDIA A10G (23GB each):
+
+| Operation | Size | Time | Throughput |
+|-----------|------|------|------------|
+| GPU MSM | 2^12 (4K points) | 15ms | 260K pts/sec |
+| GPU MSM | 2^14 (16K points) | 6.5ms | 2.5M pts/sec |
+| GPU MSM | 2^16 (65K points) | 7.9ms | 8.3M pts/sec |
+| GPU MSM | 2^18 (262K points) | 13ms | 19.5M pts/sec |
+
+
+### FFT / NTT (how it’s used here)
+
+Halo2 proving does a lot of polynomial work, and that uses FFTs. Over a finite field it’s usually called an NTT, but it’s the same “fast polynomial transform” idea. In this repo, a big chunk of proving time is from these FFT/NTT calls.
+
+- **Measure it**: set `HALO2_FFT_STATS=1` (our proof test prints totals + call counts).
+- **GPU NTT (experimental)**: `HALO2_USE_GPU_NTT=1` turns on an ICICLE NTT path for BN256 `Fr`. It’s currently not faster due to conversion overhead, so it stays opt-in.
 
 ---
 
