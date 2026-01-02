@@ -2,19 +2,22 @@
 
 Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed proving using Ray, layer-wise partitioning, and Merkle trees.
 
-> **Note:** This project is under active development. See [Next Steps](#next-steps) for current progress.
+> **⚠️ Status Note:** This is an experimental research project. For production zkML, consider [ZKTorch](https://github.com/uiuc-kang-lab/zktorch) (from the same research group) which uses proof accumulation/folding for parallelization. See [Status and Limitations](#status-and-limitations) for details.
 
-## Next Steps
+## Completed Milestones
 
 1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
 2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
 3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
 4. ~~**GPU acceleration**: ICICLE GPU backend for MSM operations ([#10](https://github.com/ray-project/distributed-zkml/issues/10))~~ Done - see [GPU Acceleration](#gpu-acceleration)
 
+**Note**: This project is experimental. For production zkML, see [ZKTorch](https://github.com/uiuc-kang-lab/zktorch) or [Status and Limitations](#status-and-limitations).
+
 ---
 
 ## Table of Contents
 
+- [Status and Limitations](#status-and-limitations)
 - [Overview](#overview)
 - [Implementation](#implementation)
 - [Requirements](#requirements)
@@ -22,6 +25,42 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 - [GPU Acceleration](#gpu-acceleration)
 - [Testing](#testing)
 - [References](#references)
+
+---
+
+## Status and Limitations
+
+### Project Status
+
+This project implements a **Ray-based distributed proving approach** for zkML. It is experimental research code and should be considered:
+
+- **Research/Educational**: Useful for studying alternative approaches to zkML parallelization
+- **Not Production-Ready**: Missing formal security analysis and proof composition
+- **Superseded**: The same research group (UIUC Kang Lab) has released [ZKTorch](https://github.com/uiuc-kang-lab/zktorch), which uses proof accumulation/folding for parallelization
+
+### Known Limitations
+
+1. **Proof Composition**: This implementation generates separate proofs per chunk. It does not implement recursive proof composition or aggregation. Verifiers must check O(n) proofs rather than O(1), limiting succinctness.
+
+2. **Security Assumptions**: The distributed trust model (Ray workers) is not formally analyzed. The README does not address:
+   - Malicious worker resistance
+   - Collusion resistance
+   - Byzantine fault tolerance
+
+3. **Scalability**: No published benchmarks comparing distributed vs. single-node performance. The approach inherits base zkml limitations (~30-80M parameter ceiling for halo2-based circuits).
+
+### When to Use This
+
+**Consider this project if:**
+- Researching alternative zkML parallelization approaches
+- Need examples of Ray integration for cryptographic workloads
+- Studying Merkle-based privacy for intermediate computations
+- Building distributed halo2 proving (not zkML-specific)
+
+**Use alternatives instead if:**
+- Need production-ready zkML → Use [ZKTorch](https://github.com/uiuc-kang-lab/zktorch) or [EZKL](https://github.com/zkonduit/ezkl)
+- Require formal security guarantees → Use frameworks with proven composition
+- Need state-of-the-art performance → ZKTorch achieves 10min GPT-2 proofs vs. ~1 hour for base zkml
 
 ---
 
@@ -50,6 +89,8 @@ distributed-zkml adds:
 2. **Parallel Execution**: Each chunk runs on a separate GPU via Ray
 3. **Merkle Commitments**: Hash intermediate outputs with Poseidon, only root is public
 4. **On-Chain**: Publish only the Merkle root (O(1) public values vs O(n) without)
+
+**Note**: Each chunk produces a separate proof. This implementation does not aggregate proofs into a single succinct proof. Verifiers must check all chunk proofs individually (O(n) verification time). For single-proof aggregation, see [ZKTorch](https://github.com/uiuc-kang-lab/zktorch)'s accumulation-based approach.
 
 \`\`\`
 Model: 9 layers -> 3 chunks
@@ -206,5 +247,6 @@ Runs on PRs to \`main\`/\`dev\`: builds zkml, runs tests (~3-4 min). GPU tests e
 
 ## References
 
-- [ZKML Paper](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf) (EuroSys '24)
-- [zkml Repository](https://github.com/uiuc-kang-lab/zkml)
+- [ZKML Paper](https://ddkang.github.io/papers/2024/zkml-eurosys.pdf) (EuroSys '24) - Original zkml framework
+- [zkml Repository](https://github.com/uiuc-kang-lab/zkml) - Base framework this project extends
+- [ZKTorch](https://github.com/uiuc-kang-lab/zktorch) - Alternative approach using proof accumulation/folding (from same research group)
