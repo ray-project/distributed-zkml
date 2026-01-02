@@ -110,12 +110,27 @@ distributed-zkml/
 
 ## Requirements
 
-### Docker Setup (Recommended)
+### Option 1: Docker (Recommended)
+
+```bash
+# Build the development image
+docker compose build dev
+
+# Run interactive shell
+docker compose run --rm dev
+
+# Run tests
+docker compose run --rm test
+```
+
+### Option 2: Native Build
 
 - **Docker** and **Docker Compose** only
 - All other dependencies are included in the container image
 
-### Native Build
+# Install Python dependencies
+uv sync  # or: pip install -e .
+```
 
 **Required:**
 - **Rust** (nightly toolchain) - Install via [rustup](https://rustup.rs/)
@@ -259,25 +274,6 @@ cd ..
 
 # 3. Install Python dependencies
 uv sync  # or: pip install -e .
-```
-
-### Run Distributed Proving
-
-```bash
-# Simulation mode (fast, no actual proofs)
-python3 tests/simple_distributed.py \
-    --model zkml/examples/mnist/model.msgpack \
-    --input zkml/examples/mnist/inp.msgpack \
-    --layers 4 \
-    --workers 2
-
-# Real mode (generates actual ZK proofs, ~2-3s per chunk)
-python3 tests/simple_distributed.py \
-    --model zkml/examples/mnist/model.msgpack \
-    --input zkml/examples/mnist/inp.msgpack \
-    --layers 4 \
-    --workers 2 \
-    --real
 ```
 
 ## Testing and CI
