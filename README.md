@@ -19,6 +19,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 - [Implementation](#implementation)
   - [How Distributed Proving Works](#how-distributed-proving-works)
   - [Structure](#structure)
+- [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
   - [CI](#ci)
@@ -106,6 +107,46 @@ distributed-zkml/
     └── testing/            # Rust test suites
 ```
 
+## Requirements
+
+### Docker Setup (Recommended)
+
+- **Docker** and **Docker Compose** only
+- All other dependencies are included in the container image
+
+### Native Build
+
+**Required:**
+- **Rust** (nightly toolchain) - Install via [rustup](https://rustup.rs/)
+- **Python** (>=3.10, recommended 3.11-3.12)
+  - macOS x86_64: Use Python 3.11 for Ray compatibility
+- **uv** (recommended) or **pip** - Python package manager
+- **System build tools**:
+  - Linux: `build-essential`, `pkg-config`, `libssl-dev`
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+
+**Python dependencies** (auto-installed via `uv sync` or `pip install -e .`):
+- `ray[default]>=2.9.0,<2.11.0` - Constrained for macOS x86_64 compatibility
+- `msgpack`, `numpy`
+
+**Optional:**
+- `pytest` - For running tests (dev dependencies)
+- `torch` - For GPU acceleration
+- CUDA/GPU drivers - For GPU-accelerated proving
+
+### Quick Reference
+
+| Tool | Docker | Native | Notes |
+|------|--------|--------|-------|
+| Docker | Required | - | Only for containerized workflow |
+| Rust (nightly) | Included | Required | Builds zkml |
+| Python (>=3.10) | Included | Required | 3.11 recommended on macOS x86_64 |
+| uv/pip | Included | Required | Python package manager |
+| Ray | Included | Required | <2.11.0 for macOS x86_64 |
+| Build tools | Included | Required | System-specific |
+
+---
+
 ## Quick Start
 
 ### Option 1: Docker (Recommended)
@@ -117,20 +158,24 @@ docker compose build dev
 # Run interactive shell
 docker compose run --rm dev
 
-# Run tests
-docker compose run --rm test
+# Inside container: run tests
+cd zkml && cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
 ```
 
 ### Option 2: Native Build
 
 ```bash
-# Ensure zkml is built first
+# 1. Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# 2. Build zkml
 cd zkml
 rustup override set nightly
 cargo build --release
 cd ..
 
-# Install Python dependencies
+# 3. Install Python dependencies
 uv sync  # or: pip install -e .
 ```
 
