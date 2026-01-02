@@ -157,12 +157,44 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
 /// This function will panic if coeffs and bases have a different length.
 ///
 /// This will use multithreading if beneficial.
+/// When the `gpu` feature is enabled and CUDA is available, uses GPU acceleration.
 pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
     assert_eq!(coeffs.len(), bases.len());
 
     log_info(format!("msm: {}", coeffs.len()));
 
     let start = get_time();
+    
+    // Try GPU MSM for BN256 G1 curve when gpu feature is enabled
+    #[cfg(feature = "gpu")]
+    {
+        use std::any::TypeId;
+        use crate::halo2curves::bn256::{Fr, G1Affine, G1};
+        
+        // Check if this is BN256 G1 curve (the curve we can accelerate)
+        if TypeId::of::<C>() == TypeId::of::<G1Affine>() && coeffs.len() >= 1024 {
+            // Safe because we verified the types match
+            let scalars: &[Fr] = unsafe { 
+                std::slice::from_raw_parts(coeffs.as_ptr() as *const Fr, coeffs.len()) 
+            };
+            let points: &[G1Affine] = unsafe { 
+                std::slice::from_raw_parts(bases.as_ptr() as *const G1Affine, bases.len()) 
+            };
+            
+            if let Some(result) = crate::gpu_msm::gpu_msm(scalars, points) {
+                let duration = get_duration(start);
+                #[allow(unsafe_code)]
+                unsafe {
+                    crate::arithmetic::MULTIEXP_TOTAL_TIME += duration;
+                }
+                // Convert G1 back to C::Curve
+                let result_ptr = &result as *const G1 as *const C::Curve;
+                return unsafe { std::ptr::read(result_ptr) };
+            }
+            // Fall through to CPU if GPU MSM failed
+        }
+    }
+
     let num_threads = multicore::current_num_threads();
     let res = if coeffs.len() > num_threads {
         let chunk = coeffs.len() / num_threads;

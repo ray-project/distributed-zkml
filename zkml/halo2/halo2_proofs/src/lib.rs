@@ -28,6 +28,9 @@
 pub mod arithmetic;
 pub mod circuit;
 pub mod fft;
+
+#[cfg(feature = "gpu")]
+pub mod gpu_msm;
 pub use halo2curves;
 mod multicore;
 pub mod plonk;
