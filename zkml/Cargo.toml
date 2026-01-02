@@ -35,8 +35,15 @@ serde_json = "1.0.85"
 wav = "1.0.0"
 rayon = "1.5.1"
 
+# GPU acceleration (optional) - ICICLE for GPU-accelerated MSM/NTT
+icicle-runtime = { git = "https://github.com/ingonyama-zk/icicle.git", tag = "v3.1.0", optional = true }
+icicle-bn254 = { git = "https://github.com/ingonyama-zk/icicle.git", tag = "v3.1.0", optional = true }
+icicle-core = { git = "https://github.com/ingonyama-zk/icicle.git", tag = "v3.1.0", optional = true }
+
 [features]
+default = []
 ray = []
+gpu = ["halo2_proofs/gpu", "icicle-runtime", "icicle-bn254", "icicle-core"]
 
 [dev-dependencies]
 rand_core = "0.6.4"
@@ -99,3 +106,7 @@ path = "testing/test_merkle_root_public.rs"
 [[test]]
 name = "chunk_proof_test"
 path = "testing/chunk_proof_test.rs"
+
+[[test]]
+name = "gpu_benchmark_test"
+path = "testing/gpu_benchmark_test.rs"

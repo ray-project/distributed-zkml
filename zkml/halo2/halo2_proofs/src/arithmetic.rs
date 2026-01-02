@@ -18,7 +18,15 @@ use crate::{
     plonk::{get_duration, get_time, log_info},
     poly::EvaluationDomain,
 };
-use std::{env, mem};
+use std::{
+    any::TypeId,
+    env,
+    mem,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Once,
+    },
+};
 
 /// This represents an element of a group with basic operations that can be
 /// performed. This allows an FFT implementation (for example) to operate
@@ -37,6 +45,58 @@ where
 
 /// TEMP
 pub static mut MULTIEXP_TOTAL_TIME: usize = 0;
+
+// -----------------------------------------------------------------------------
+// Optional FFT stats instrumentation (enabled via HALO2_FFT_STATS=1)
+// -----------------------------------------------------------------------------
+static FFT_STATS_INIT: Once = Once::new();
+static FFT_STATS_ENABLED: AtomicBool = AtomicBool::new(false);
+
+static FFT_TOTAL_US: AtomicUsize = AtomicUsize::new(0);
+static FFT_CALLS_TOTAL: AtomicUsize = AtomicUsize::new(0);
+static FFT_CALLS_FIELD: AtomicUsize = AtomicUsize::new(0);
+static FFT_CALLS_GROUP: AtomicUsize = AtomicUsize::new(0);
+
+fn fft_stats_enabled() -> bool {
+    FFT_STATS_INIT.call_once(|| {
+        let enabled = env::var("HALO2_FFT_STATS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        FFT_STATS_ENABLED.store(enabled, Ordering::Relaxed);
+    });
+    FFT_STATS_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Simple FFT stats (microseconds and call counts).
+#[derive(Clone, Copy, Debug)]
+pub struct FftStats {
+    /// Total time spent in `best_fft` (microseconds).
+    pub total_us: usize,
+    /// Total number of `best_fft` calls.
+    pub calls_total: usize,
+    /// Number of `best_fft` calls where the FFT was over field elements (G == Scalar).
+    pub calls_field: usize,
+    /// Number of `best_fft` calls where the FFT was over group elements (G != Scalar).
+    pub calls_group: usize,
+}
+
+/// Read current FFT stats counters.
+pub fn fft_stats() -> FftStats {
+    FftStats {
+        total_us: FFT_TOTAL_US.load(Ordering::Relaxed),
+        calls_total: FFT_CALLS_TOTAL.load(Ordering::Relaxed),
+        calls_field: FFT_CALLS_FIELD.load(Ordering::Relaxed),
+        calls_group: FFT_CALLS_GROUP.load(Ordering::Relaxed),
+    }
+}
+
+/// Reset FFT stats counters.
+pub fn reset_fft_stats() {
+    FFT_TOTAL_US.store(0, Ordering::Relaxed);
+    FFT_CALLS_TOTAL.store(0, Ordering::Relaxed);
+    FFT_CALLS_FIELD.store(0, Ordering::Relaxed);
+    FFT_CALLS_GROUP.store(0, Ordering::Relaxed);
+}
 
 fn multiexp_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C], acc: &mut C::Curve) {
     let coeffs: Vec<_> = coeffs.iter().map(|a| a.to_repr()).collect();
@@ -157,7 +217,7 @@ pub fn small_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::C
 /// This function will panic if coeffs and bases have a different length.
 ///
 /// This will use multithreading if beneficial.
-pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+fn best_multiexp_cpu<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
     assert_eq!(coeffs.len(), bases.len());
 
     log_info(format!("msm: {}", coeffs.len()));
@@ -197,15 +257,113 @@ pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Cu
     res
 }
 
+/// Performs a multi-exponentiation operation.
+///
+/// When `--features gpu` is enabled, BN256/G1Affine MSMs are dispatched to ICICLE (CUDA)
+/// using safe specialization. All other curves fall back to the CPU implementation.
+#[cfg(feature = "gpu")]
+pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+    <() as MultiexpBackend<C>>::multiexp(coeffs, bases)
+}
+
+/// Performs a multi-exponentiation operation (CPU-only build).
+#[cfg(not(feature = "gpu"))]
+pub fn best_multiexp<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+    best_multiexp_cpu(coeffs, bases)
+}
+
+// -----------------------------------------------------------------------------
+// Optional GPU MSM dispatch plumbing (BN256 specialization)
+// -----------------------------------------------------------------------------
+#[cfg(feature = "gpu")]
+trait MultiexpBackend<C: CurveAffine> {
+    fn multiexp(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve;
+}
+
+#[cfg(feature = "gpu")]
+impl<C: CurveAffine> MultiexpBackend<C> for () {
+    default fn multiexp(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
+        best_multiexp_cpu(coeffs, bases)
+    }
+}
+
+#[cfg(feature = "gpu")]
+impl MultiexpBackend<crate::halo2curves::bn256::G1Affine> for () {
+    fn multiexp(
+        coeffs: &[crate::halo2curves::bn256::Fr],
+        bases: &[crate::halo2curves::bn256::G1Affine],
+    ) -> crate::halo2curves::bn256::G1 {
+        if let Some(res) = crate::gpu_msm::gpu_msm(coeffs, bases) {
+            return res;
+        }
+        best_multiexp_cpu(coeffs, bases)
+    }
+}
+
 /// Dispatcher
-pub fn best_fft<Scalar: Field, G: FftGroup<Scalar>>(
+pub fn best_fft<Scalar: Field + 'static, G: FftGroup<Scalar> + 'static>(
     a: &mut [G],
     omega: Scalar,
     log_n: u32,
     data: &FFTData<Scalar>,
     inverse: bool,
 ) {
-    fft::fft(a, omega, log_n, data, inverse);
+    let stats = fft_stats_enabled();
+    let start = if stats { Some(get_time()) } else { None };
+
+    #[cfg(feature = "gpu")]
+    {
+        <() as FftBackend<Scalar, G>>::fft(a, omega, log_n, data, inverse);
+    }
+    #[cfg(not(feature = "gpu"))]
+    {
+        fft::fft(a, omega, log_n, data, inverse);
+    }
+
+    if let Some(start) = start {
+        let dur = get_duration(start);
+        FFT_TOTAL_US.fetch_add(dur, Ordering::Relaxed);
+        FFT_CALLS_TOTAL.fetch_add(1, Ordering::Relaxed);
+
+        let is_field_fft = TypeId::of::<G>() == TypeId::of::<Scalar>();
+        if is_field_fft {
+            FFT_CALLS_FIELD.fetch_add(1, Ordering::Relaxed);
+        } else {
+            FFT_CALLS_GROUP.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Optional GPU FFT/NTT dispatch plumbing (BN256 Fr specialization)
+// -----------------------------------------------------------------------------
+#[cfg(feature = "gpu")]
+trait FftBackend<Scalar: Field + 'static, G: FftGroup<Scalar> + 'static> {
+    fn fft(a: &mut [G], omega: Scalar, log_n: u32, data: &FFTData<Scalar>, inverse: bool);
+}
+
+#[cfg(feature = "gpu")]
+impl<Scalar: Field + 'static, G: FftGroup<Scalar> + 'static> FftBackend<Scalar, G> for () {
+    default fn fft(a: &mut [G], omega: Scalar, log_n: u32, data: &FFTData<Scalar>, inverse: bool) {
+        fft::fft(a, omega, log_n, data, inverse);
+    }
+}
+
+#[cfg(feature = "gpu")]
+impl FftBackend<crate::halo2curves::bn256::Fr, crate::halo2curves::bn256::Fr> for () {
+    fn fft(
+        a: &mut [crate::halo2curves::bn256::Fr],
+        omega: crate::halo2curves::bn256::Fr,
+        log_n: u32,
+        data: &FFTData<crate::halo2curves::bn256::Fr>,
+        inverse: bool,
+    ) {
+        // Opt-in: only use GPU NTT when explicitly enabled.
+        if crate::gpu_ntt::try_gpu_ntt_inplace(a, omega) {
+            return;
+        }
+        fft::fft(a, omega, log_n, data, inverse);
+    }
 }
 
 /// Convert coefficient bases group elements to lagrange basis by inverse FFT.
@@ -462,4 +620,26 @@ fn test_lagrange_interpolate() {
             assert_eq!(eval_polynomial(&poly, *point), *eval);
         }
     }
+}
+
+/// GPU-accelerated MSM specifically for BN256 G1 curve.
+/// Falls back to CPU if GPU is not available.
+#[cfg(feature = "gpu")]
+pub fn best_multiexp_bn256(
+    coeffs: &[crate::halo2curves::bn256::Fr], 
+    bases: &[crate::halo2curves::bn256::G1Affine]
+) -> crate::halo2curves::bn256::G1 {
+    use crate::halo2curves::bn256::{Fr, G1Affine, G1};
+    use group::Group;
+    
+    assert_eq!(coeffs.len(), bases.len());
+    
+    // Try GPU MSM first
+    if let Some(result) = crate::gpu_msm::gpu_msm(coeffs, bases) {
+        return result;
+    }
+    
+    // Fall back to CPU
+    let cpu_result = best_multiexp(coeffs, bases);
+    cpu_result
 }

@@ -9,7 +9,7 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 1. ~~**Make Merkle root public**: Add root to public values so next chunk can verify it~~ Done
 2. ~~**Complete proof generation**: Connect chunk execution to actual proof generation ([#8](https://github.com/ray-project/distributed-zkml/issues/8))~~ Done
 3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
-4. **GPU acceleration**: Current implementation is CPU-based. GPU acceleration for proof generation requires additional work ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
+4. **GPU acceleration**: ICICLE GPU backend integrated for MSM operations. See [GPU Acceleration](#gpu-acceleration) for setup. ([#10](https://github.com/ray-project/distributed-zkml/issues/10))
 
 ---
 
@@ -19,6 +19,8 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 - [Implementation](#implementation)
   - [How Distributed Proving Works](#how-distributed-proving-works)
   - [Structure](#structure)
+- [Requirements](#requirements)
+- [GPU Acceleration](#gpu-acceleration)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
   - [CI](#ci)
@@ -106,7 +108,7 @@ distributed-zkml/
     └── testing/            # Rust test suites
 ```
 
-## Quick Start
+## Requirements
 
 ### Option 1: Docker (Recommended)
 
@@ -123,34 +125,155 @@ docker compose run --rm test
 
 ### Option 2: Native Build
 
-```bash
-# Ensure zkml is built first
-cd zkml
-rustup override set nightly
-cargo build --release
-cd ..
+- **Docker** and **Docker Compose** only
+- All other dependencies are included in the container image
 
 # Install Python dependencies
 uv sync  # or: pip install -e .
 ```
 
-### Run Distributed Proving
+**Required:**
+- **Rust** (nightly toolchain) - Install via [rustup](https://rustup.rs/)
+- **Python** (>=3.10, recommended 3.11-3.12)
+  - macOS x86_64: Use Python 3.11 for Ray compatibility
+- **uv** (recommended) or **pip** - Python package manager
+- **System build tools**:
+  - Linux: `build-essential`, `pkg-config`, `libssl-dev`
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+
+**Python dependencies** (auto-installed via `uv sync` or `pip install -e .`):
+- `ray[default]>=2.9.0,<2.11.0` - Constrained for macOS x86_64 compatibility
+- `msgpack`, `numpy`
+
+**Optional:**
+- `pytest` - For running tests (dev dependencies)
+- NVIDIA GPU + CUDA 12.x - For GPU-accelerated proving ops
+- ICICLE backend - GPU MSM/NTT acceleration (see [GPU Acceleration](#gpu-acceleration))
+
+### Quick Reference
+
+| Tool | Docker | Native | Notes |
+|------|--------|--------|-------|
+| Docker | Required | - | Only for containerized workflow |
+| Rust (nightly) | Included | Required | Builds zkml |
+| Python (>=3.10) | Included | Required | 3.11 recommended on macOS x86_64 |
+| uv/pip | Included | Required | Python package manager |
+| Ray | Included | Required | <2.11.0 for macOS x86_64 |
+| Build tools | Included | Required | System-specific |
+
+---
+
+---
+
+## GPU Acceleration
+
+GPU acceleration uses [ICICLE](https://github.com/ingonyama-zk/icicle) for GPU-accelerated MSM (Multi-Scalar Multiplication) operations.
+
+### GPU Requirements
+
+- NVIDIA GPU (tested on A10G, compatible with A100/H100)
+- CUDA 12.x drivers
+- Ubuntu 20.04+ (Ubuntu 22.04 recommended)
+
+### GPU Setup
+
+1. **Download ICICLE backend** (match your Ubuntu version):
 
 ```bash
-# Simulation mode (fast, no actual proofs)
-python3 tests/simple_distributed.py \
-    --model zkml/examples/mnist/model.msgpack \
-    --input zkml/examples/mnist/inp.msgpack \
-    --layers 4 \
-    --workers 2
+# Ubuntu 22.04
+curl -L -o /tmp/icicle.tar.gz \\
+  https://github.com/ingonyama-zk/icicle/releases/download/v3.1.0/icicle_3_1_0-ubuntu22-cuda122.tar.gz
 
-# Real mode (generates actual ZK proofs, ~2-3s per chunk)
-python3 tests/simple_distributed.py \
-    --model zkml/examples/mnist/model.msgpack \
-    --input zkml/examples/mnist/inp.msgpack \
-    --layers 4 \
-    --workers 2 \
-    --real
+# Ubuntu 20.04
+curl -L -o /tmp/icicle.tar.gz \\
+  https://github.com/ingonyama-zk/icicle/releases/download/v3.1.0/icicle_3_1_0-ubuntu20-cuda122.tar.gz
+```
+
+2. **Install backend**:
+
+```bash
+mkdir -p ~/.icicle
+tar -xzf /tmp/icicle.tar.gz -C /tmp
+cp -r /tmp/icicle/lib/backend ~/.icicle/
+```
+
+3. **Set environment variable** (add to ~/.bashrc):
+
+```bash
+export ICICLE_BACKEND_INSTALL_DIR=~/.icicle/backend
+```
+
+4. **Build with GPU support**:
+
+```bash
+cd zkml
+cargo build --release --features gpu
+```
+
+5. **Verify GPU detection**:
+
+```bash
+ICICLE_BACKEND_INSTALL_DIR=~/.icicle/backend \\
+  cargo test --test gpu_benchmark_test --release --features gpu -- --nocapture
+```
+
+Expected output:
+```
+Registered devices: ["CUDA", "CPU"]
+Successfully set CUDA device 0
+```
+
+### Benchmark Results
+
+Tested on 4x NVIDIA A10G (23GB each):
+
+| Operation | Size | Time | Throughput |
+|-----------|------|------|------------|
+| GPU MSM | 2^12 (4K points) | 15ms | 260K pts/sec |
+| GPU MSM | 2^14 (16K points) | 6.5ms | 2.5M pts/sec |
+| GPU MSM | 2^16 (65K points) | 7.9ms | 8.3M pts/sec |
+| GPU MSM | 2^18 (262K points) | 13ms | 19.5M pts/sec |
+
+
+### FFT / NTT (how it’s used here)
+
+Halo2 proving does a lot of polynomial work, and that uses FFTs. Over a finite field it’s usually called an NTT, but it’s the same “fast polynomial transform” idea. In this repo, a big chunk of proving time is from these FFT/NTT calls.
+
+- **Measure it**: set `HALO2_FFT_STATS=1` (our proof test prints totals + call counts).
+- **GPU NTT (experimental)**: `HALO2_USE_GPU_NTT=1` turns on an ICICLE NTT path for BN256 `Fr`. It’s currently not faster due to conversion overhead, so it stays opt-in.
+
+---
+
+## Quick Start
+
+### Option 1: Docker (Recommended)
+
+```bash
+# Build the development image
+docker compose build dev
+
+# Run interactive shell
+docker compose run --rm dev
+
+# Inside container: run tests
+cd zkml && cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
+```
+
+### Option 2: Native Build
+
+```bash
+# 1. Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# 2. Build zkml
+cd zkml
+rustup override set nightly
+cargo build --release
+cd ..
+
+# 3. Install Python dependencies
+uv sync  # or: pip install -e .
 ```
 
 ## Testing and CI

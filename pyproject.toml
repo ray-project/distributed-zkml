@@ -7,7 +7,8 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "ray[default]>=2.9.0,<3.0.0",
+    # Ray <2.11.0 required for macOS x86_64 compatibility
+    "ray[default]>=2.9.0,<2.11.0",
     "msgpack>=1.0.0,<2.0.0",
     "numpy>=1.24.0,<2.0.0",
 ]
