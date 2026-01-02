@@ -18,13 +18,35 @@ mod tests {
     #[cfg(feature = "gpu")]
     use icicle_runtime::{device::Device, memory::HostSlice};
 
+    /// Helper to initialize ICICLE with CUDA backend
+    #[cfg(feature = "gpu")]
+    fn init_icicle_cuda() -> bool {
+        // Load CUDA backend - required for ICICLE v3.x
+        if let Err(e) = icicle_runtime::load_backend_from_env_or_default() {
+            println!("Warning: Failed to load backend: {:?}", e);
+        }
+
+        // Check available devices after loading backend
+        let devices = icicle_runtime::get_registered_devices().unwrap_or_default();
+        println!("Registered devices after loading backend: {:?}", devices);
+
+        // Try to set CUDA device
+        let cuda_device = Device::new("CUDA", 0);
+        icicle_runtime::set_device(&cuda_device).is_ok()
+    }
+
     /// Test that ICICLE runtime initializes and detects GPUs
     #[test]
     #[cfg(feature = "gpu")]
     fn test_icicle_gpu_detection() {
         println!("\n=== ICICLE GPU Detection Test ===\n");
 
-        // Initialize ICICLE runtime
+        // Load backend first
+        if let Err(e) = icicle_runtime::load_backend_from_env_or_default() {
+            println!("Warning: Failed to load backend: {:?}", e);
+        }
+
+        // Check available devices
         let devices = icicle_runtime::get_registered_devices().unwrap();
         println!("Registered devices: {:?}", devices);
 
@@ -54,11 +76,8 @@ mod tests {
     fn test_gpu_msm_benchmark() {
         println!("\n=== GPU MSM Benchmark ===\n");
 
-        // Try to initialize CUDA
-        let cuda_device = Device::new("CUDA", 0);
-        let gpu_available = icicle_runtime::set_device(&cuda_device).is_ok();
-
-        if !gpu_available {
+        // Initialize ICICLE with CUDA backend
+        if !init_icicle_cuda() {
             println!("GPU not available, skipping GPU benchmark");
             println!("  Run on a machine with NVIDIA GPU and CUDA installed");
             return;
@@ -103,8 +122,8 @@ mod tests {
     fn test_gpu_msm_correctness() {
         println!("\n=== GPU MSM Correctness Test ===\n");
 
-        let cuda_device = Device::new("CUDA", 0);
-        if icicle_runtime::set_device(&cuda_device).is_err() {
+        // Initialize ICICLE with CUDA backend
+        if !init_icicle_cuda() {
             println!("GPU not available, skipping test");
             return;
         }
