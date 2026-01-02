@@ -105,3 +105,7 @@ path = "testing/test_merkle_root_public.rs"
 [[test]]
 name = "chunk_proof_test"
 path = "testing/chunk_proof_test.rs"
+
+[[test]]
+name = "gpu_benchmark_test"
+path = "testing/gpu_benchmark_test.rs"
