@@ -21,8 +21,6 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
   - [Structure](#structure)
 - [Quick Start](#quick-start)
 - [Testing and CI](#testing-and-ci)
-  - [General](#general)
-  - [Testing on AWS GPU Instances](#testing-on-aws-gpu-instances)
   - [CI](#ci)
 - [References](#references)
 
@@ -157,197 +155,35 @@ python3 tests/simple_distributed.py \
 
 ## Testing and CI
 
-### General
+### Distributed Proving Test
 
-#### Python Tests (pytest)
+Test the distributed proving pipeline:
 
-##### Run All Tests
 ```bash
-pytest tests/
+# Simulation mode (fast, no real proofs)
+python tests/simple_distributed.py \
+    --model zkml/examples/mnist/model.msgpack \
+    --input zkml/examples/mnist/inp.msgpack \
+    --layers 4 --workers 2
+
+# Real mode (generates actual ZK proofs)
+python tests/simple_distributed.py \
+    --model zkml/examples/mnist/model.msgpack \
+    --input zkml/examples/mnist/inp.msgpack \
+    --layers 4 --workers 2 --real
 ```
 
-##### Run specific GPU and AWS tests
-```bash
-pytest tests/aws/gpu_test.py
-pytest tests/aws/gpu_test.py::test_aws_credentials
-```
+### Rust Tests
 
-#### Rust Tests (Cargo)
-
-##### Run All Tests in zkml
-```bash
-cd zkml
-# Run only the test files (recommended)
-cargo test --test merkle_tree_test --test chunk_execution_test
-
-# Note: Running `cargo test` without --test flags will try to compile examples,
-# some of which may have errors. Use --test flags to run specific tests.
-```
-
-##### Run Specific Test File
 ```bash
 cd zkml
-cargo test --test merkle_tree_test
-cargo test --test chunk_execution_test
+
+# Run all tests
+cargo test --test merkle_tree_test --test chunk_execution_test --test test_merkle_root_public -- --nocapture
+
+# Run specific test
+cargo test --test merkle_tree_test -- --nocapture
 ```
-
-##### Run Tests with Output
-```bash
-cd zkml
-cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
-```
-
-##### Run Tests for distributed-zkml Crate
-```bash
-# From distributed-zkml root
-cargo test
-```
-
-##### Check Compilation Only
-```bash
-cd zkml
-cargo check --lib
-```
-
-Broken example files are moved to `zkml/examples/broken/` to prevent compilation errors. Use `--test` flags when running tests.
-
-#### Test Files
-
-##### Python Tests
-- `tests/aws/gpu_test.py` - AWS GPU tests
-  - `test_aws_credentials()` - Check AWS credentials
-  - `test_gpu_availability()` - Check GPU availability
-  - `test_ray_setup()` - Test Ray cluster setup
-
-##### Rust Tests
-- `zkml/testing/merkle_tree_test.rs` - Merkle tree tests
-  - `test_merkle_single_value()` - Single value Merkle tree
-  - `test_merkle_multiple_values()` - Multiple values Merkle tree
-  - `test_merkle_root_verification()` - Root verification
-
-- `zkml/testing/chunk_execution_test.rs` - Chunk execution tests
-  - `test_chunk_execution_intermediate_values()` - Extract intermediate values
-  - `test_chunk_execution_with_merkle()` - Chunk execution with Merkle
-  - `test_multiple_chunks_consistency()` - Multiple chunks consistency
-
-### Testing on AWS GPU Instances
-
-#### Prerequisites
-
-##### AWS Credentials
-
-Set the following environment variables:
-
-```bash
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_SESSION_TOKEN=your_session_token
-```
-
-##### AWS Resource Configuration
-
-**Option 1: Automated Setup (Recommended)**
-
-Run the setup script to automatically get/create resources:
-
-```bash
-# Optional: Set custom resource names for auto-detection
-export AWS_KEY_NAME=your-key-name              # Optional: for auto-detection
-export AWS_SECURITY_GROUP_NAME=your-sg-name    # Optional: for auto-detection
-
-# Run setup script (will prompt or create resources)
-./tests/aws/setup_aws_resources.sh
-
-# Copy the export commands it shows, then set:
-export KEY_NAME=your-key-name                  # Required: from setup script
-export SECURITY_GROUP=sg-xxxxx                 # Required: from setup script
-```
-
-**Option 2: Manual Configuration**
-
-Set all required variables manually:
-
-```bash
-# Required: AWS credentials
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_SESSION_TOKEN=your_session_token
-
-# Required: Resource identifiers
-export KEY_NAME=your-key-name                  # Your EC2 key pair name
-export SECURITY_GROUP=sg-xxxxx                # Your security group ID
-
-# Optional: Override defaults
-export AWS_REGION=us-west-2                    # Default: us-west-2
-export INSTANCE_TYPE=g5.xlarge                 # Default: g5.xlarge
-export AMI_ID=ami-0076e7fffffc9251d           # Default: Ubuntu 20.04, PyTorch 2.3.1
-```
-
-##### GPU Instance
-
-Launch an AWS instance with GPU support:
-- A100: `g5.xlarge` or larger (1x A100)
-- H100: `p5.48xlarge` (8x H100)
-
-##### Dependencies
-
-```bash
-# Install Rust (nightly)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup override set nightly
-
-# Install Python dependencies
-pip install ray torch
-
-# Install CUDA drivers (usually pre-installed on GPU instances)
-nvidia-smi  # Verify GPU is available
-```
-
-#### Test Suite
-
-The test suite includes:
-
-1. AWS Credentials Check: Validates required environment variables
-2. GPU Availability Check: Verifies GPU is accessible via `nvidia-smi`
-3. Ray Cluster Setup: Initializes Ray with GPU support
-4. Basic GPU Distribution: Tests task distribution across GPU workers
-5. Distributed Proving Simulation: Runs distributed proving with Merkle trees
-
-#### Expected Output
-
-```
-============================================================
-AWS GPU Tests for Distributed Proving
-============================================================
-INFO: AWS credentials found
-INFO: GPU detected
-INFO: Ray initialized with 1 GPU(s)
-
---- Running: Basic GPU Distribution ---
-INFO: Testing GPU distribution with 2 workers
-INFO: Completed 4 tasks
-INFO: Task 0: Worker 0, GPU 0, Time: 2.34ms
-...
-
---- Running: Distributed Proving Simulation ---
-INFO: Testing distributed proving simulation
-INFO: Distributed proving completed: 2 chunks
-INFO: Chunk 0: success
-INFO: Chunk 1: success
-
-============================================================
-Test Summary
-============================================================
-Basic GPU Distribution: PASS
-Distributed Proving Simulation: PASS
-```
-
-#### Performance Notes
-
-- A100: ~40GB VRAM, suitable for large models
-- H100: ~80GB VRAM, suitable for very large models
-- Ray automatically distributes tasks across available GPUs
-- Monitor GPU usage: `watch -n 1 nvidia-smi`
 
 ### CI
 
