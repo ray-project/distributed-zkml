@@ -35,8 +35,14 @@ serde_json = "1.0.85"
 wav = "1.0.0"
 rayon = "1.5.1"
 
+# GPU acceleration (optional)
+icicle-cuda-runtime = { version = "3.0", optional = true }
+icicle-bn254 = { version = "3.0", optional = true }
+icicle-core = { version = "3.0", optional = true }
+
 [features]
 ray = []
+gpu = ["icicle-cuda-runtime", "icicle-bn254", "icicle-core"]
 
 [dev-dependencies]
 rand_core = "0.6.4"
