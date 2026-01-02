@@ -174,5 +174,62 @@ mod tests {
 
         println!("CPU baseline test passed");
     }
+
+    /// Benchmark CPU FFT vs ICICLE GPU NTT (BN256 Fr).
+    ///
+    /// Uses halo2_proofs `best_fft` and toggles `HALO2_USE_GPU_NTT`.
+    #[test]
+    #[cfg(feature = "gpu")]
+    fn test_gpu_ntt_vs_cpu_fft_benchmark() {
+        use halo2_proofs::halo2curves::bn256::Fr;
+        use halo2_proofs::halo2curves::ff::Field;
+        use halo2_proofs::poly::EvaluationDomain;
+
+        println!("\n=== GPU NTT vs CPU FFT Benchmark ===\n");
+
+        let log_n: u32 = 18;
+        let n: usize = 1 << log_n;
+
+        let domain = EvaluationDomain::<Fr>::new(1, log_n);
+        let omega = domain.get_omega();
+        let fft_data = domain.get_fft_data(n);
+
+        let input: Vec<Fr> = (0..n).map(|_| Fr::random(rand_core::OsRng)).collect();
+
+        // CPU FFT baseline (force NTT off)
+        std::env::remove_var("HALO2_USE_GPU_NTT");
+        let mut cpu = input.clone();
+        let t0 = Instant::now();
+        halo2_proofs::arithmetic::best_fft(&mut cpu, omega, log_n, fft_data, false);
+        let cpu_time = t0.elapsed();
+
+        // GPU NTT (opt-in)
+        std::env::set_var("HALO2_USE_GPU_NTT", "1");
+        std::env::set_var("HALO2_FORCE_GPU_NTT", "1");
+        halo2_proofs::gpu_ntt::reset_gpu_ntt_call_count();
+
+        // Warmup (includes one-time domain init)
+        let mut warm = input.clone();
+        halo2_proofs::arithmetic::best_fft(&mut warm, omega, log_n, fft_data, false);
+
+        let mut gpu = input.clone();
+        let t1 = Instant::now();
+        halo2_proofs::arithmetic::best_fft(&mut gpu, omega, log_n, fft_data, false);
+        let gpu_time = t1.elapsed();
+
+        assert_eq!(cpu, gpu, "GPU NTT output must match CPU FFT output");
+
+        println!("Size: 2^{} = {}", log_n, n);
+        println!("CPU FFT time: {:?}", cpu_time);
+        println!("GPU NTT time: {:?}", gpu_time);
+        println!(
+            "GPU NTT calls (successful): {}",
+            halo2_proofs::gpu_ntt::gpu_ntt_call_count()
+        );
+        println!(
+            "Speedup (CPU/GPU): {:.2}x",
+            cpu_time.as_secs_f64() / gpu_time.as_secs_f64()
+        );
+    }
 }
 

@@ -41,8 +41,9 @@ icicle-bn254 = { git = "https://github.com/ingonyama-zk/icicle.git", tag = "v3.1
 icicle-core = { git = "https://github.com/ingonyama-zk/icicle.git", tag = "v3.1.0", optional = true }
 
 [features]
+default = []
 ray = []
-gpu = ["icicle-runtime", "icicle-bn254", "icicle-core"]
+gpu = ["halo2_proofs/gpu", "icicle-runtime", "icicle-bn254", "icicle-core"]
 
 [dev-dependencies]
 rand_core = "0.6.4"

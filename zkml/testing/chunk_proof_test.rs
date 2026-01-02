@@ -26,6 +26,19 @@ mod tests {
             eprintln!("Skipping test: example files not found");
             return;
         }
+
+        // Enable FFT timing counters (printed at end of test).
+        std::env::set_var("HALO2_FFT_STATS", "1");
+        halo2_proofs::arithmetic::reset_fft_stats();
+
+        // If built with GPU support, force trying GPU MSM and print how many times
+        // proving actually hit the GPU paths.
+        #[cfg(feature = "gpu")]
+        {
+            std::env::set_var("HALO2_FORCE_GPU_MSM", "1");
+            halo2_proofs::gpu_msm::reset_gpu_msm_call_count();
+            halo2_proofs::gpu_ntt::reset_gpu_ntt_call_count();
+        }
         
         // Use unique params directory to avoid race conditions
         let params_dir = "./params_kzg_chunk_test";
@@ -55,6 +68,21 @@ mod tests {
         println!("  Public values: {}", result.public_vals.len());
         println!("  Proving time: {}ms", result.proving_time_ms);
         println!("  Verify time: {}ms", result.verify_time_ms);
+
+        #[cfg(feature = "gpu")]
+        {
+            let calls = halo2_proofs::gpu_msm::gpu_msm_call_count();
+            println!("  GPU MSM calls (successful): {}", calls);
+
+            let ntt_calls = halo2_proofs::gpu_ntt::gpu_ntt_call_count();
+            println!("  GPU NTT calls (successful): {}", ntt_calls);
+        }
+
+        let fft = halo2_proofs::arithmetic::fft_stats();
+        println!(
+            "  FFT stats: total_us={}, calls_total={}, calls_field={}, calls_group={}",
+            fft.total_us, fft.calls_total, fft.calls_field, fft.calls_group
+        );
     }
 
     /// Test: Chain two chunk proofs via Merkle root
