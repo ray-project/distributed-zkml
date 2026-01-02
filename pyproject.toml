@@ -7,19 +7,14 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    # Ray <2.11.0 required for macOS x86_64 compatibility
-    "ray[default]>=2.9.0,<2.11.0",
+    "ray[default]>=2.31.0",
     "msgpack>=1.0.0,<2.0.0",
-    "numpy>=1.24.0,<2.0.0",
+    "numpy>=1.24.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0,<8.0.0",
-    "pytest-asyncio>=0.21.0,<1.0.0",
-]
-gpu = [
-    "torch>=2.0.0",
+    "pytest>=7.0.0",
 ]
 
 [build-system]
@@ -29,14 +24,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["python"]
 
-[dependency-groups]
-dev = [
-    "pytest>=7.0.0,<8.0.0",
-    "pytest-asyncio>=0.21.0,<1.0.0",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-asyncio_mode = "auto"
-

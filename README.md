@@ -51,66 +51,68 @@ distributed-zkml adds:
 3. **Merkle Commitments**: Hash intermediate outputs with Poseidon, only root is public
 4. **On-Chain**: Publish only the Merkle root (O(1) public values vs O(n) without)
 
-```
-Model: 9 layers → 3 chunks
-  Chunk 1: Layers 0-2 → GPU 1 → Hash A
-  Chunk 2: Layers 3-5 → GPU 2 → Hash B
-  Chunk 3: Layers 6-8 → GPU 3 → Hash C
+\`\`\`
+Model: 9 layers -> 3 chunks
+  Chunk 1: Layers 0-2 -> GPU 1 -> Hash A
+  Chunk 2: Layers 3-5 -> GPU 2 -> Hash B
+  Chunk 3: Layers 6-8 -> GPU 3 -> Hash C
 
 Merkle Tree:
         Root (public)
-       /    \
+       /    \\
     Hash(AB) Hash C
-    /    \
+    /    \\
  Hash A  Hash B
-```
+\`\`\`
 
 ### Structure
 
-```
+\`\`\`
 distributed-zkml/
 ├── python/                 # Python wrappers for Rust prover
 ├── tests/                  # Distributed proving tests
 └── zkml/                   # zkml (modified for Merkle + chunking)
     ├── src/bin/prove_chunk.rs
     └── testing/
-```
+\`\`\`
 
 ## Requirements
 
-### Option 1: Docker (Recommended)
+### Docker (Recommended)
 
 Just Docker and Docker Compose. Everything else is in the container.
 
-### Option 2: Native Build
+### Native Build
 
 | Dependency | Notes |
 |------------|-------|
 | Rust (nightly) | Install via [rustup](https://rustup.rs/) |
-| Python >=3.10 | 3.11 recommended on macOS x86_64 |
-| uv or pip | `uv sync` or `pip install -e .` |
-| Build tools | Linux: `build-essential pkg-config libssl-dev`; macOS: Xcode CLI |
+| Python >=3.10 | |
+| pip | \`pip install -e .\` |
+| Build tools | Linux: \`build-essential pkg-config libssl-dev\`; macOS: Xcode CLI |
 
-**Python deps** (installed via `uv sync`):
-- `ray[default]>=2.9.0,<2.11.0`
-- `msgpack`, `numpy`
+**Python deps** (installed via \`pip install -e .\`):
+- \`ray[default]>=2.31.0\`
+- \`msgpack\`, \`numpy\`
 
 **Optional**: NVIDIA GPU + CUDA 12.x + ICICLE backend for GPU acceleration
+
+---
 
 ## Quick Start
 
 ### Docker
 
-```bash
+\`\`\`bash
 docker compose build dev
 docker compose run --rm dev
 # Inside container:
 cd zkml && cargo test --test merkle_tree_test -- --nocapture
-```
+\`\`\`
 
 ### Native
 
-```bash
+\`\`\`bash
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
@@ -118,8 +120,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cd zkml && rustup override set nightly && cargo build --release && cd ..
 
 # Python deps
-uv sync  # or: pip install -e .
-```
+pip install -e .
+\`\`\`
 
 ---
 
@@ -135,9 +137,9 @@ Uses [ICICLE](https://github.com/ingonyama-zk/icicle) for GPU-accelerated MSM (M
 
 ### Setup
 
-```bash
-# 1. Download ICICLE backend (Ubuntu 22.04)
-curl -L -o /tmp/icicle.tar.gz \
+\`\`\`bash
+# 1. Download ICICLE backend (Ubuntu 22.04 - use ubuntu20 for 20.04)
+curl -L -o /tmp/icicle.tar.gz \\
   https://github.com/ingonyama-zk/icicle/releases/download/v3.1.0/icicle_3_1_0-ubuntu22-cuda122.tar.gz
 
 # 2. Install
@@ -151,7 +153,13 @@ cd zkml && cargo build --release --features gpu
 
 # 5. Verify
 cargo test --test gpu_benchmark_test --release --features gpu -- --nocapture
-```
+\`\`\`
+
+Expected output:
+\`\`\`
+Registered devices: ["CUDA", "CPU"]
+Successfully set CUDA device 0
+\`\`\`
 
 ### Benchmarks (Tesla T4)
 
@@ -163,8 +171,8 @@ cargo test --test gpu_benchmark_test --release --features gpu -- --nocapture
 
 ### FFT/NTT Notes
 
-- **Measure FFT time**: `HALO2_FFT_STATS=1`
-- **GPU NTT (experimental)**: `HALO2_USE_GPU_NTT=1` - currently slower due to conversion overhead
+- **Measure FFT time**: \`HALO2_FFT_STATS=1\`
+- **GPU NTT (experimental)**: \`HALO2_USE_GPU_NTT=1\` - currently slower due to conversion overhead
 
 ---
 
@@ -172,27 +180,27 @@ cargo test --test gpu_benchmark_test --release --features gpu -- --nocapture
 
 ### Distributed Proving
 
-```bash
+\`\`\`bash
 # Simulation (fast)
-python tests/simple_distributed.py \
-    --model zkml/examples/mnist/model.msgpack \
-    --input zkml/examples/mnist/inp.msgpack \
+python tests/simple_distributed.py \\
+    --model zkml/examples/mnist/model.msgpack \\
+    --input zkml/examples/mnist/inp.msgpack \\
     --layers 4 --workers 2
 
 # Real proofs
 python tests/simple_distributed.py ... --real
-```
+\`\`\`
 
 ### Rust Tests
 
-```bash
+\`\`\`bash
 cd zkml
 cargo test --test merkle_tree_test --test chunk_execution_test -- --nocapture
-```
+\`\`\`
 
 ### CI
 
-Runs on PRs to `main`/`dev`: builds zkml, runs tests (~3-4 min). GPU tests excluded to save costs.
+Runs on PRs to \`main\`/\`dev\`: builds zkml, runs tests (~3-4 min). GPU tests excluded to save costs.
 
 ---
 
