@@ -11,6 +11,8 @@ Extension of [zkml](https://github.com/uiuc-kang-lab/zkml) for distributed provi
 3. ~~**Ray-Rust integration**: Connect Python Ray workers to Rust proof generation ([#9](https://github.com/ray-project/distributed-zkml/issues/9))~~ Done
 4. ~~**GPU acceleration**: ICICLE GPU backend for MSM operations ([#10](https://github.com/ray-project/distributed-zkml/issues/10))~~ Done - see [GPU Acceleration](#gpu-acceleration)
 
+**Note**: For production zkML, see [zk-torch](https://github.com/uiuc-kang-lab/zk-torch) or [Status and Limitations](#status-and-limitations).
+
 ---
 
 ## Table of Contents
